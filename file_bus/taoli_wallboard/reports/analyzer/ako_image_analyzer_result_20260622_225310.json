@@ -1,0 +1,11 @@
+{
+  "agent": "AKO_image_analyzer",
+  "intent": "图像分析",
+  "project": "taoli",
+  "image_path": "",
+  "returncode": 1,
+  "summary": "AKO_image_analyzer 执行完成: 图像分析",
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"E:\\AKO_image_analyzer\\cli\\cli.py\", line 17, in <module>\n    from core.analyzer import analyze_image, KnowledgeBase\nModuleNotFoundError: No module named 'core'\n",
+  "generated_at": "2026-06-22T22:53:10.661380"
+}

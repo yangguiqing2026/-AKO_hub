@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AKO Hub 调度控制台</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   AKO 品牌色系
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --cream: #EBDAB9;
+  --gray:  #C3BEB4;
+  --dark:  #231E1C;
+  --amber: #A08C64;
+  --gold:  #B99B5F;
+  --card:  #F7F3E8;
+  --card-hover: #EFE9D8;
+
+  /* 功能色 */
+  --green:  #22c55e;
+  --yellow: #eab308;
+  --red:    #ef4444;
+  --slate:  #94a3b8;
+
+  --sidebar-w: 200px;
+  --radius: 8px;
+  --shadow: 0 1px 4px rgba(35,30,28,0.06);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   全局
+   ═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--cream);
+  color: var(--dark);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+a { color: var(--gold); text-decoration: none; }
+a:hover { color: var(--amber); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   侧边栏
+   ═══════════════════════════════════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: linear-gradient(180deg, #2a2420 0%, var(--dark) 100%);
+  color: var(--cream);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  z-index: 10;
+}
+
+.sidebar-brand {
+  padding: 1.25rem 1rem 0.75rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(235,218,185,0.12);
+}
+
+.sidebar-brand .logo-img {
+  width: 140px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+.sidebar-brand .sub {
+  font-size: 0.7rem;
+  color: var(--amber);
+  margin-top: 2px;
+  letter-spacing: 1px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 0.75rem 0;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.6rem 1rem;
+  margin: 2px 8px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  color: var(--gray);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+.nav-item:hover {
+  background: rgba(235,218,185,0.08);
+  color: var(--cream);
+}
+.nav-item.active {
+  background: rgba(185,155,95,0.15);
+  color: var(--gold);
+  border-left-color: var(--gold);
+  font-weight: 600;
+}
+.nav-item .icon { font-size: 1.1rem; width: 22px; text-align: center; }
+
+.nav-divider {
+  height: 1px;
+  background: rgba(235,218,185,0.10);
+  margin: 0.5rem 1rem;
+}
+
+.sidebar-footer {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(235,218,185,0.12);
+  font-size: 0.7rem;
+  color: var(--gray);
+  text-align: center;
+}
+
+.sidebar-company {
+  font-size: 0.62rem;
+  color: var(--gray);
+  padding: 0.5rem 0.6rem 0;
+  text-align: center;
+  line-height: 1.4;
+  opacity: 0.7;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.status-dot.green  { background: var(--green); }
+.status-dot.yellow { background: var(--yellow); }
+.status-dot.red    { background: var(--red); }
+.status-dot.gray   { background: var(--slate); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   主区域
+   ═══════════════════════════════════════════════════════════════════ */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── 顶部状态栏 ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.6rem 1.5rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--gray);
+  box-shadow: var(--shadow);
+  min-height: 52px;
+  flex-shrink: 0;
+}
+
+.topbar-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--dark);
+  flex: 1;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.metric-label { color: var(--amber); font-weight: 600; }
+.metric-value { font-weight: 700; }
+
+.ts-badge {
+  font-size: 0.7rem;
+  color: var(--gray);
+  margin-left: auto;
+}
+
+/* ── 内容区 ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   面板
+   ═══════════════════════════════════════════════════════════════════ */
+.panel { display: none; }
+.panel.active { display: block; }
+
+.panel-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--amber);
+}
+
+/* ── 概览卡片 ── */
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.ov-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--gold);
+}
+.ov-card .ov-label {
+  font-size: 0.7rem;
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.ov-card .ov-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--dark);
+  margin-top: 2px;
+}
+
+/* ── Agent 节点网格 ── */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.agent-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: transform 0.15s;
+}
+.agent-card:hover { transform: translateY(-1px); }
+
+.traffic-light {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.traffic-light.green  { background: var(--green);  box-shadow: 0 0 6px var(--green); }
+.traffic-light.yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.traffic-light.red    { background: var(--red);    box-shadow: 0 0 6px var(--red); }
+.traffic-light.gray   { background: var(--slate); }
+
+.agent-info { flex: 1; min-width: 0; }
+.agent-name  { font-weight: 700; font-size: 0.85rem; }
+.agent-type  { font-size: 0.68rem; color: var(--amber); }
+.agent-stats { font-size: 0.68rem; color: var(--gray); margin-top: 2px; }
+
+/* ── 表格 ── */
+.ako-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  background: var(--card);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.ako-table th {
+  background: var(--dark);
+  color: var(--cream);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.75rem;
+}
+.ako-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--gray);
+}
+.ako-table tr:nth-child(even) { background: rgba(235,218,185,0.3); }
+.ako-table tr:hover { background: var(--card-hover); }
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.badge-green  { background: #dcfce7; color: #166534; }
+.badge-yellow { background: #fef9c3; color: #854d0e; }
+.badge-red    { background: #fee2e2; color: #991b1b; }
+.badge-gray   { background: #f1f5f9; color: #475569; }
+
+/* ── 日志查看器 ── */
+.log-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.log-toolbar select, .log-toolbar input {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--gray);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  background: var(--card);
+  color: var(--dark);
+  font-family: inherit;
+}
+.log-toolbar select:focus, .log-toolbar input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.log-viewer {
+  background: #1e1b18;
+  color: #d4c8b0;
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  height: calc(100vh - 250px);
+  min-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-line { padding: 1px 0; }
+.log-line .log-ts   { color: #8b7e6a; }
+.log-line .log-agent { color: var(--gold); font-weight: 600; }
+.log-line .log-level-INFO  { color: #6bc96b; }
+.log-line .log-level-WARN  { color: #eab308; }
+.log-line .log-level-ERROR { color: #ef4444; }
+.log-line .log-level-FATAL { color: #dc2626; font-weight: 700; }
+.log-line .log-level-DEBUG { color: #94a3b8; }
+
+/* ── 表单 ── */
+.ako-form {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow);
+  max-width: 640px;
+}
+.form-group { margin-bottom: 1rem; }
+.form-group label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--amber);
+  margin-bottom: 4px;
+}
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--gray);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--dark);
+}
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(185,155,95,0.15);
+}
+.form-group textarea { min-height: 80px; resize: vertical; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.btn-primary {
+  background: var(--gold);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--amber);
+  box-shadow: 0 2px 8px rgba(160,140,100,0.25);
+}
+.btn-sm {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+/* ── 配置区域 ── */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.config-item {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.config-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.config-key {
+  font-size: 0.7rem;
+  color: var(--amber);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.config-val {
+  font-size: 0.82rem;
+  color: var(--dark);
+  word-break: break-all;
+}
+
+/* ── 颜色色板 ── */
+.color-swatch {
+  display: inline-block;
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--gray);
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+/* ── 空状态 ── */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--gray);
+}
+.empty-state .big-icon { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fff;
+  animation: slideIn 0.25s ease-out;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.toast.success { background: #166534; }
+.toast.error   { background: #991b1b; }
+.toast.info    { background: var(--dark); }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═════════════════════════════════════════════════════════      侧边栏 -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <img src="/static/ako_logo.png" alt="阿格" class="logo-img">
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-item active" data-panel="overview">
+      <span class="icon">📊</span> 系统概览
+    </div>
+    <div class="nav-item" data-panel="agents">
+      <span class="icon">🤖</span> Agent 节点
+    </div>
+    <div class="nav-item" data-panel="tasks">
+      <span class="icon">📋</span> 任务队列
+    </div>
+    <div class="nav-item" data-panel="submit">
+      <span class="icon">➕</span> 提交任务
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" data-panel="logs">
+      <span class="icon">📝</span> 日志流
+    </div>
+    <div class="nav-item" data-panel="config">
+      <span class="icon">⚙️</span> 配置
+    </div>
+  </nav>
+
+  <div class="sidebar-company">贵州阿格装配式建筑智造有限公司<br>智能系统 V1版</div>
+
+  <div class="sidebar-footer">
+    <span id="sidebar-status-dot" class="status-dot gray"></span>
+    <span id="sidebar-status-text">等待连接</span>
+  </div>
+</aside>
+
+<!-- ═════════════════════════════════════════════════════════      主区域 -->
+<main class="main">
+  <!-- 顶部状态栏 -->
+  <div class="topbar">
+    <span class="topbar-title" id="topbar-title">系统概览</span>
+
+    <div class="metric">
+      <span class="metric-label">Agent</span>
+      <span class="metric-value" id="metric-agents">-/ -</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">告警</span>
+      <span class="metric-value" id="metric-alerts">-</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">任务</span>
+      <span class="metric-value" id="metric-tasks">-</span>
+    </div>
+
+    <span class="ts-badge" id="ts-badge">--</span>
+  </div>
+
+  <!-- 内容区 -->
+  <div class="content">
+
+    <!-- ═══════ 系统概览 ═══════ -->
+    <div class="panel active" id="panel-overview">
+      <div class="overview-grid">
+        <div class="ov-card">
+          <div class="ov-label">Agent 总数</div>
+          <div class="ov-value" id="ov-total">-</div>
+        </div>
+        <div class="ov-card" style="border-left-color: var(--green);">
+          <div class="ov-label">在线</div>
+          <div class="ov-value" id="ov-online">-</div>
+        </div>
+        <div class="ov-card" style="border-left-color: var(--red);">
+          <div class="ov-label">未恢复告警</div>
+          <div class="ov-value" id="ov-alerts">-</div>
+        </div>
+        <div class="ov-card" style="border-left-color: var(--amber);">
+          <div class="ov-label">活跃任务</div>
+          <div class="ov-value" id="ov-tasks">-</div>
+        </div>
+      </div>
+
+      <div class="panel-title">Agent 节点</div>
+      <div class="agent-grid" id="agent-grid"></div>
+
+      <div class="panel-title">最近告警</div>
+      <div id="alert-list"></div>
+    </div>
+
+    <!-- ═══════ Agent 节点 ═══════ -->
+    <div class="panel" id="panel-agents">
+      <div class="panel-title">Agent 详细状态</div>
+      <div style="overflow-x:auto;">
+        <table class="ako-table" id="agent-table">
+          <thead>
+            <tr>
+              <th>状态</th><th>Agent ID</th><th>显示名</th><th>类型</th>
+              <th>CPU %</th><th>内存 MB</th><th>最后心跳</th><th>最后任务</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════ 任务队列 ═══════ -->
+    <div class="panel" id="panel-tasks">
+      <div class="panel-title">任务队列</div>
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+        <button class="btn btn-sm btn-primary task-filter active" data-status="">全部</button>
+        <button class="btn btn-sm task-filter" data-status="pending" style="background:var(--card);border:1px solid var(--gray);">待处理</button>
+        <button class="btn btn-sm task-filter" data-status="running" style="background:var(--card);border:1px solid var(--gray);">执行中</button>
+        <button class="btn btn-sm task-filter" data-status="done" style="background:var(--card);border:1px solid var(--gray);">已完成</button>
+        <button class="btn btn-sm task-filter" data-status="failed" style="background:var(--card);border:1px solid var(--gray);">失败</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="ako-table" id="task-table">
+          <thead>
+            <tr>
+              <th>任务 ID</th><th>标题</th><th>类型</th><th>状态</th>
+              <th>Agent</th><th>创建时间</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════ 提交任务 ═══════ -->
+    <div class="panel" id="panel-submit">
+      <div class="panel-title">提交新任务</div>
+      <div class="ako-form">
+        <div class="form-group">
+          <label>任务标题</label>
+          <input id="task-title" placeholder="例：复杂报价计算">
+        </div>
+        <div class="form-group">
+          <label>任务意图 (自然语言描述)</label>
+          <textarea id="task-intent" placeholder="描述你要做什么...&#10;例：根据图纸生成材料清单和报价"></textarea>
+        </div>
+        <div class="form-group">
+          <label>指定 Agent（可选）</label>
+          <select id="task-agent">
+            <option value="">自动分配</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>任务类型</label>
+          <select id="task-type">
+            <option value="composite">复合任务</option>
+            <option value="single">单一任务</option>
+            <option value="batch">批量任务</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="submitTask()">提交任务</button>
+      </div>
+    </div>
+
+    <!-- ═══════ 日志流 ═══════ -->
+    <div class="panel" id="panel-logs">
+      <div class="panel-title">日志流</div>
+      <div class="log-toolbar">
+        <select id="log-agent-filter" onchange="loadLogs()">
+          <option value="">全部 Agent</option>
+        </select>
+        <select id="log-level-filter" onchange="loadLogs()">
+          <option value="">全部级别</option>
+          <option value="INFO">INFO</option>
+          <option value="WARN">WARN</option>
+          <option value="ERROR">ERROR</option>
+          <option value="FATAL">FATAL</option>
+          <option value="DEBUG">DEBUG</option>
+        </select>
+        <input id="log-search" placeholder="搜索关键词..." oninput="loadLogs()">
+        <button class="btn btn-sm btn-primary" onclick="loadLogs()">刷新</button>
+      </div>
+      <div class="log-viewer" id="log-viewer">
+        <span style="color:#8b7e6a;">加载中...</span>
+      </div>
+    </div>
+
+    <!-- ═══════ 配置 ═══════ -->
+    <div class="panel" id="panel-config">
+      <div class="panel-title">系统配置</div>
+      <div class="config-grid" id="config-grid">
+        <span style="color:var(--gray);">加载中...</span>
+      </div>
+
+      <div class="panel-title" style="margin-top:1.5rem;">品牌色板</div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div style="background:var(--card);border-radius:var(--radius);padding:0.6rem 1rem;text-align:center;">
+          <div class="color-swatch" style="background:var(--cream);"></div>
+          <span style="font-size:0.75rem;">奶油金<br>#EBDAB9</span>
+        </div>
+        <div style="background:var(--card);border-radius:var(--radius);padding:0.6rem 1rem;text-align:center;">
+          <div class="color-swatch" style="background:var(--gray);"></div>
+          <span style="font-size:0.75rem;">冷暖灰<br>#C3BEB4</span>
+        </div>
+        <div style="background:var(--card);border-radius:var(--radius);padding:0.6rem 1rem;text-align:center;">
+          <div class="color-swatch" style="background:var(--dark);"></div>
+          <span style="font-size:0.75rem;">深棕黑<br>#231E1C</span>
+        </div>
+        <div style="background:var(--card);border-radius:var(--radius);padding:0.6rem 1rem;text-align:center;">
+          <div class="color-swatch" style="background:var(--amber);"></div>
+          <span style="font-size:0.75rem;">琥珀金<br>#A08C64</span>
+        </div>
+        <div style="background:var(--card);border-radius:var(--radius);padding:0.6rem 1rem;text-align:center;">
+          <div class="color-swatch" style="background:var(--gold);"></div>
+          <span style="font-size:0.75rem;">熔金<br>#B99B5F</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════════
+   JavaScript
+   ═══════════════════════════════════════════════════════════════ -->
+<script>
+// ── 全局状态 ────────────────────────────────────────────────────
+const STATE = {
+  agents: [],
+  alerts: [],
+  tasks: [],
+  logs: [],
+  config: null,
+  total: 0, online: 0, alertCount: 0, taskCount: 0,
+};
+
+// ── 导航切换 ────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+
+    const panelId = item.dataset.panel;
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + panelId).classList.add('active');
+
+    document.getElementById('topbar-title').textContent = item.textContent.trim();
+
+    // 切换时刷新数据
+    if (panelId === 'logs') loadLogs();
+    if (panelId === 'tasks') loadTasks();
+    if (panelId === 'config') loadConfig();
+  });
+});
+
+// ── Toast 通知 ──────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── 格式化 ──────────────────────────────────────────────────────
+function fmtTs(ts) {
+  if (!ts) return '--';
+  return ts.replace('T', ' ').substring(0, 19);
+}
+
+function statusBadge(status) {
+  const map = {
+    pending: 'badge-yellow', running: 'badge-green',
+    done: 'badge-gray', failed: 'badge-red',
+  };
+  return '<span class="badge ' + (map[status] || 'badge-gray') + '">' + (status || '--') + '</span>';
+}
+
+function trafficDot(color) {
+  return '<span class="traffic-light ' + color + '"></span>';
+}
+
+// ── 更新概览 ────────────────────────────────────────────────────
+function updateOverview(snap) {
+  const d = snap.data || snap;
+  STATE.total = d.total || 0;
+  STATE.online = d.online || 0;
+  STATE.alertCount = d.alerts || 0;
+  STATE.taskCount = d.active_tasks || 0;
+  STATE.agents = d.agents || [];
+
+  document.getElementById('ov-total').textContent = STATE.total;
+  document.getElementById('ov-online').textContent = STATE.online;
+  document.getElementById('ov-alerts').textContent = STATE.alertCount;
+  document.getElementById('ov-tasks').textContent = STATE.taskCount;
+
+  document.getElementById('metric-agents').innerHTML =
+    '<span style="color:var(--green);">' + STATE.online + '</span> / ' + STATE.total;
+  document.getElementById('metric-alerts').textContent = STATE.alertCount;
+  document.getElementById('metric-tasks').textContent = STATE.taskCount;
+  document.getElementById('ts-badge').textContent = fmtTs(d.ts);
+
+  // Agent 节点网格
+  const grid = document.getElementById('agent-grid');
+  if (STATE.agents.length) {
+    grid.innerHTML = STATE.agents.map(a =>
+      '<div class="agent-card">' +
+        trafficDot(a.traffic || 'gray') +
+        '<div class="agent-info">' +
+          '<div class="agent-name">' + (a.display_name || a.agent_id || '--') + '</div>' +
+          '<div class="agent-type">' + (a.agent_id || '') + '</div>' +
+          '<div class="agent-stats">' +
+            'CPU ' + (a.cpu_percent != null ? a.cpu_percent.toFixed(1) + '%' : '--') +
+            ' · MEM ' + (a.memory_mb != null ? a.memory_mb.toFixed(0) + 'MB' : '--') +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    ).join('');
+  } else {
+    grid.innerHTML = '<div class="empty-state"><span class="big-icon">🤖</span>暂无 Agent 数据</div>';
+  }
+
+  // Agent 详细表格
+  const tbody = document.querySelector('#agent-table tbody');
+  tbody.innerHTML = STATE.agents.map(a =>
+    '<tr>' +
+      '<td>' + trafficDot(a.traffic || 'gray') + '</td>' +
+      '<td>' + (a.agent_id || '--') + '</td>' +
+      '<td>' + (a.display_name || '--') + '</td>' +
+      '<td>' + (a.agent_type || '--') + '</td>' +
+      '<td>' + (a.cpu_percent != null ? a.cpu_percent.toFixed(1) : '--') + '</td>' +
+      '<td>' + (a.memory_mb != null ? a.memory_mb.toFixed(0) : '--') + '</td>' +
+      '<td>' + fmtTs(a.timestamp) + '</td>' +
+      '<td>' + (a.last_task || '--') + '</td>' +
+    '</tr>'
+  ).join('');
+
+  // 更新提交任务的 Agent 下拉
+  const sel = document.getElementById('task-agent');
+  sel.innerHTML = '<option value="">自动分配</option>' +
+    STATE.agents.map(a => '<option value="' + a.agent_id + '">' + (a.display_name || a.agent_id) + '</option>').join('');
+
+  // 更新日志 Agent 下拉
+  const logSel = document.getElementById('log-agent-filter');
+  if (!logSel.dataset.filled) {
+    logSel.innerHTML = '<option value="">全部 Agent</option>' +
+      STATE.agents.map(a => '<option value="' + a.agent_id + '">' + (a.display_name || a.agent_id) + '</option>').join('');
+    logSel.dataset.filled = '1';
+  }
+}
+
+// ── 更新告警列表 ────────────────────────────────────────────────
+function updateAlerts(alerts) {
+  STATE.alerts = alerts || [];
+  const el = document.getElementById('alert-list');
+  if (!STATE.alerts.length) {
+    el.innerHTML = '<div class="empty-state"><span class="big-icon">✅</span>无未恢复告警</div>';
+    return;
+  }
+  el.innerHTML = STATE.alerts.map(a => {
+    const sevColor = {critical:'#dc2626',warning:'#f59e0b',info:'#A08C64'}[a.severity] || '#A08C64';
+    return '<div style="background:var(--card);border-radius:var(--radius);padding:0.65rem 1rem;margin-bottom:0.5rem;' +
+      'border-left:4px solid ' + sevColor + ';display:flex;align-items:center;gap:0.75rem;">' +
+      '<span style="font-size:0.7rem;font-weight:700;color:' + sevColor + ';">[' + (a.severity||'info').toUpperCase() + ']</span>' +
+      '<span style="flex:1;">' + (a.message || '') + '</span>' +
+      '<span style="font-size:0.68rem;color:var(--gray);">' + (a.agent_id || '') + '</span>' +
+      '<button class="btn btn-sm" style="background:var(--dark);color:var(--cream);" onclick="ackAlert(' + a.id + ')">确认</button>' +
+      '</div>';
+  }).join('');
+}
+
+// ── 告警确认 ────────────────────────────────────────────────────
+async function ackAlert(id) {
+  const r = await fetch('/api/alerts/' + id + '/ack', { method: 'POST' });
+  if (r.ok) {
+    toast('告警已确认', 'success');
+    loadAlerts();
+  } else {
+    toast('操作失败', 'error');
+  }
+}
+
+// ── 加载任务 ────────────────────────────────────────────────────
+async function loadTasks(status) {
+  let url = '/api/tasks?limit=100';
+  if (status) url += '&status=' + status;
+  const r = await fetch(url);
+  const data = await r.json();
+  STATE.tasks = data.tasks || [];
+  renderTasks();
+}
+
+function renderTasks() {
+  const tbody = document.querySelector('#task-table tbody');
+  if (!STATE.tasks.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:2rem;">暂无任务</td></tr>';
+    return;
+  }
+  tbody.innerHTML = STATE.tasks.map(t =>
+    '<tr>' +
+      '<td style="font-family:monospace;font-size:0.75rem;">' + (t.task_id || '--') + '</td>' +
+      '<td>' + (t.title || '--') + '</td>' +
+      '<td>' + (t.task_type || '--') + '</td>' +
+      '<td>' + statusBadge(t.status) + '</td>' +
+      '<td>' + (t.agent_id || '自动') + '</td>' +
+      '<td>' + fmtTs(t.created_at) + '</td>' +
+    '</tr>'
+  ).join('');
+}
+
+// ── 任务筛选按钮 ────────────────────────────────────────────────
+document.querySelectorAll('.task-filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.task-filter').forEach(b => {
+      b.classList.remove('active');
+      b.style.background = 'var(--card)';
+      b.style.color = 'var(--dark)';
+    });
+    btn.classList.add('active');
+    btn.style.background = 'var(--gold)';
+    btn.style.color = '#fff';
+    loadTasks(btn.dataset.status || '');
+  });
+});
+
+// ── 提交任务 ────────────────────────────────────────────────────
+async function submitTask() {
+  const title = document.getElementById('task-title').value.trim();
+  const intent = document.getElementById('task-intent').value.trim();
+  const agent = document.getElementById('task-agent').value;
+  const type = document.getElementById('task-type').value;
+
+  if (!title) { toast('请输入任务标题', 'error'); return; }
+
+  const r = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title, intent, agent_id: agent || null, task_type: type,
+      input_data: { intent },
+    }),
+  });
+  const data = await r.json();
+  if (data.ok) {
+    toast('任务 ' + data.task_id + ' 已创建', 'success');
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-intent').value = '';
+  } else {
+    toast('提交失败', 'error');
+  }
+}
+
+// ── 加载日志 ────────────────────────────────────────────────────
+async function loadLogs() {
+  const params = new URLSearchParams();
+  const agent = document.getElementById('log-agent-filter').value;
+  const level = document.getElementById('log-level-filter').value;
+  const search = document.getElementById('log-search').value.trim();
+  if (agent) params.set('agent', agent);
+  if (level) params.set('level', level);
+  if (search) params.set('search', search);
+  params.set('limit', '200');
+
+  const r = await fetch('/api/logs?' + params.toString());
+  const data = await r.json();
+  STATE.logs = data.logs || [];
+  renderLogs();
+}
+
+function renderLogs() {
+  const el = document.getElementById('log-viewer');
+  if (!STATE.logs.length) {
+    el.innerHTML = '<span style="color:#8b7e6a;">暂无日志</span>';
+    return;
+  }
+  el.innerHTML = STATE.logs.map(l => {
+    const level = l.level || 'INFO';
+    const cls = 'log-level-' + level;
+    return '<div class="log-line">' +
+      '<span class="log-ts">' + fmtTs(l.timestamp) + '</span> ' +
+      '<span class="log-agent">[' + (l.agent_id || '') + ']</span> ' +
+      '<span class="' + cls + '">' + level + '</span> ' +
+      escapeHtml(l.message || '') +
+      '</div>';
+  }).join('');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── 加载告警 ────────────────────────────────────────────────────
+async function loadAlerts() {
+  const r = await fetch('/api/alerts');
+  const data = await r.json();
+  updateAlerts(data.alerts);
+}
+
+// ── 加载配置 ────────────────────────────────────────────────────
+async function loadConfig() {
+  const r = await fetch('/api/config');
+  STATE.config = await r.json();
+  const cfg = STATE.config;
+  document.getElementById('config-grid').innerHTML = [
+    { key: '数据库', val: cfg.db_path, ok: true },
+    { key: 'Hub YAML', val: cfg.hub_yaml_exists ? '存在' : '缺失', ok: cfg.hub_yaml_exists },
+    { key: '环境配置', val: cfg.env_exists ? '存在' : '缺失', ok: cfg.env_exists },
+    { key: '项目根', val: cfg.project_root, ok: true },
+    { key: '控制台端口', val: cfg.port, ok: true },
+    { key: 'Agent 数据', val: cfg.agents_from_db ? '来自数据库' : '无', ok: cfg.agents_from_db },
+  ].map(c =>
+    '<div class="config-item">' +
+      '<div class="config-dot" style="background:' + (c.ok ? 'var(--green)' : 'var(--red)') + ';"></div>' +
+      '<div><div class="config-key">' + c.key + '</div><div class="config-val">' + c.val + '</div></div>' +
+    '</div>'
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SSE 实时连接
+// ═══════════════════════════════════════════════════════════════════
+function connectSSE() {
+  const es = new EventSource('/api/stream');
+
+  es.onopen = () => {
+    document.getElementById('sidebar-status-dot').className = 'status-dot green';
+    document.getElementById('sidebar-status-text').textContent = '已连接';
+  };
+
+  es.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.event === 'connected') return;
+
+      if (msg.event === 'snapshot') {
+        updateOverview(msg);
+        loadAlerts();
+      }
+    } catch (e) {
+      console.error('SSE parse error', e);
+    }
+  };
+
+  es.onerror = () => {
+    document.getElementById('sidebar-status-dot').className = 'status-dot red';
+    document.getElementById('sidebar-status-text').textContent = '断开 · 3s 重连';
+    es.close();
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+// ── 启动 ────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  connectSSE();
+  loadAlerts();
+  loadTasks();
+  loadLogs();
+  loadConfig();
+});
+</script>
+</body>
+</html>

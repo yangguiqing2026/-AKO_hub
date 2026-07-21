@@ -1,0 +1,60 @@
+{
+  "queries": [
+    "陶粒发泡混凝土大板墙板",
+    "适用于乡村自建房的装配式墙体",
+    "4米跨度 10米高度 墙板",
+    "贵州阿格建筑 防火性能",
+    "GB50016 防火规范 墙体材料",
+    "580万 壹 THE ONE 顶奢"
+  ],
+  "stats": [
+    {
+      "query": "陶粒发泡混凝土大板墙板",
+      "dense_ms": 5.5,
+      "sparse_ms": 352.0,
+      "hybrid_ms": 694.5,
+      "top1_reranked": false,
+      "top5_overlap": 5
+    },
+    {
+      "query": "适用于乡村自建房的装配式墙体",
+      "dense_ms": 4.0,
+      "sparse_ms": 245.7,
+      "hybrid_ms": 592.0,
+      "top1_reranked": false,
+      "top5_overlap": 5
+    },
+    {
+      "query": "4米跨度 10米高度 墙板",
+      "dense_ms": 4.4,
+      "sparse_ms": 488.5,
+      "hybrid_ms": 661.2,
+      "top1_reranked": false,
+      "top5_overlap": 4
+    },
+    {
+      "query": "贵州阿格建筑 防火性能",
+      "dense_ms": 4.3,
+      "sparse_ms": 273.4,
+      "hybrid_ms": 571.8,
+      "top1_reranked": false,
+      "top5_overlap": 5
+    },
+    {
+      "query": "GB50016 防火规范 墙体材料",
+      "dense_ms": 3.2,
+      "sparse_ms": 229.9,
+      "hybrid_ms": 585.0,
+      "top1_reranked": false,
+      "top5_overlap": 5
+    },
+    {
+      "query": "580万 壹 THE ONE 顶奢",
+      "dense_ms": 3.8,
+      "sparse_ms": 255.5,
+      "hybrid_ms": 601.6,
+      "top1_reranked": false,
+      "top5_overlap": 4
+    }
+  ]
+}

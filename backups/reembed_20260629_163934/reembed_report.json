@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-06-29T18:04:01",
+  "hub_root": "D:\\AKO_Hub",
+  "backend": "flag",
+  "dry_run": false,
+  "stats": [
+    {
+      "collection": "ako_photos",
+      "total_docs": 2201,
+      "processed": 2201,
+      "failed": 0,
+      "duration_sec": 5050.77,
+      "status": "ok",
+      "mode": "full_reembed"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+# AKO Hub 全局配置文件
+# 部署时将此文件复制到 ~/.ako/hub.yaml 或保持当前路径
+
+# 同步根目录：指向百度云盘中的共享目录
+# 双机需配置为相同的绝对路径
+sync_root: "E:/数据库_同步百度云盘/BaiduSyncdisk/AKO_Hub"
+
+# 元数据库路径（相对于 sync_root 或绝对路径）
+# 建议直接使用 sync_root 下的 age_hub.db，确保双机同步
+meta_db: "hub_meta.db"
+
+# Chroma 向量库根目录（相对于 sync_root）
+chroma_root: "./chroma_db"
+
+# 文件总线根目录（相对于 sync_root）
+file_root: "./file_bus"
+
+# 备份目录（相对于 sync_root）
+backup_dir: "system/backups"
+
+# 日志目录（相对于 sync_root）
+log_dir: "system/logs"
+
+# 全局 embedding 模型（锁定为 bge-m3 三向量 Dense+Sparse+ColBERT）
+embedding_model: "bge-m3"
+
+# ── 检索配置（bge-m3 三向量混合检索） ─────────────────
+retrieval_mode: "hybrid"            # hybrid | dense_only | sparse_only
+hybrid_weights:                     # 三路 RRF 融合权重
+  dense: 0.33
+  sparse: 0.33
+  colbert: 0.34
+colbert_rerank_top_k: 20            # ColBERT 精排候选集大小
+sparse_model: "bge-m3"              # Sparse 词权重模型
+dense_model: "bge-m3"               # Dense 向量模型
+
+# 当前机器标识（用于双机区分）
+machine_id: "machine_02"
+
+# 蒲公英组网的对端机器标识（用于同步校验）
+peer_machine_id: "machine_01"
+
+# 文件命名分隔符（强制）
+filename_sep: "_"
+
+# 版本前缀（强制）
+version_prefix: "v"
+
+# ── Spoke 源码目录映射（D 盘独立项目） ────────────────
+# Hub 通过 source_dir 找到各 Agent/Workflow 的 Python 入口
+spoke_sources:
+  ako_architect_agent: "D:/AKO_architect_agent"
+  ako_drawing_inspector: "D:/AKO_drawing_inspector"
+  ako_image_analyzer: "D:/AKO_image_analyzer"
+  ako_chat: "D:/AKO_chat"
+  ako_knowledge: "D:/AKO_knowledge"
+  ako_business_agent: "D:/AKO_business_agent"
+  ako_kb_agent: "D:/AKO_kb_agent"
+  ako_workflow: "D:/AKO_workflow"
+
+# ── 服务端口注册表 ─────────────────────────────────────
+service_ports:
+  hub: 7862
+  chat: 7861
+  knowledge: 8000
+  sd: 7860
+  comfyui: 8188
+  ollama: 11434
+
+# ── 知识库集合名称映射 ─────────────────────────────────
+kb_collections:
+  taoli_general_arch: "ako_taoli_general_arch"
+  taoli_fire_codes: "ako_taoli_fire_codes_arch"
+  taoli_building_codes: "ako_taoli_building_codes_arch"
+  taoli_history: "ako_taoli_history_arch"
+  taoli_masters: "ako_taoli_masters_arch"
+  taoli_area: "ako_taoli_area_arch"
+  photos: "ako_photos"
+  oak_documents: "oak_documents"
+  drawing_standards: "drawing_standards"
+  building_codes: "building_codes"
+  cost_data: "cost_data"
+
+# ── 文档分块参数 ───────────────────────────────────────
+chunking:
+  size: 768
+  overlap: 128
+  min_size: 100

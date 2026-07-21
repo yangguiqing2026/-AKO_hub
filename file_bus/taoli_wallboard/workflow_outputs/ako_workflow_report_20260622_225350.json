@@ -1,0 +1,12 @@
+{
+  "intent": "图像分析",
+  "project_tag": "taoli",
+  "agents_called": [
+    "图像分析 Agent-01"
+  ],
+  "sub_results": [],
+  "errors": [
+    "Agent 未注册: 图像分析 Agent-01"
+  ],
+  "generated_at": "2026-06-22T22:53:50.120341"
+}
