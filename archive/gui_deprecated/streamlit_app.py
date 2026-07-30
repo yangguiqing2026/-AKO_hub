@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import streamlit as st
+# [DEPRECATED_GUI] import streamlit as st
 import pandas as pd
 import urllib.request
 
@@ -45,7 +45,7 @@ st.set_page_config(page_title="AKO Hub 控制面板", page_icon="🏗️", layou
 # ═══════════════════════════════════════════════════════════════════════
 # CSS 注入
 # ═══════════════════════════════════════════════════════════════════════
-st.markdown(f"""
+# [DEPRECATED_GUI] st.markdown(f"""
 <style>
     .stApp {{ background-color: {C_BG}; }}
     section[data-testid="stSidebar"] {{
@@ -190,7 +190,7 @@ def _check_http(endpoint: str, timeout: float = 3.0) -> Dict:
 # P0-1. 系统状态总览
 # ═══════════════════════════════════════════════════════════════════════
 def render_overview():
-    st.markdown('<h2 class="section-title">🫀 系统状态总览</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">🫀 系统状态总览</h2>', unsafe_allow_html=True)
 
     hub_api, list_all_spokes = _get_modules()
 
@@ -213,12 +213,12 @@ def render_overview():
         "error": "🔴 异常", "unknown": "⚫ 未连接"
     }
 
-    c1, c2 = st.columns(2)
+    # [DEPRECATED_GUI] c1, c2 = st.columns(2)
     c1.metric("AKO_Hub 主服务", "🟢 在线" if hub_online else "🔴 离线")
     c2.metric("LangGraph 状态机", state_label.get(langgraph_state, langgraph_state))
 
     st.divider()
-    st.subheader("组件健康检查")
+    # [DEPRECATED_GUI] st.subheader("组件健康检查")
     endpoints = [
         ("Hub API",       "http://127.0.0.1:7862/health"),
         ("Chat",          "http://127.0.0.1:7861/health"),
@@ -250,7 +250,7 @@ def render_overview():
 # P0-2. Agent 节点状态
 # ═══════════════════════════════════════════════════════════════════════
 def render_agents():
-    st.markdown('<h2 class="section-title">🤖 Agent 节点状态</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">🤖 Agent 节点状态</h2>', unsafe_allow_html=True)
 
     _, list_all_spokes = _get_modules()
     spokes = list_all_spokes()
@@ -268,7 +268,7 @@ def render_agents():
     """)
     load_map = {r["agent_id"]: r["running"] for r in loads}
 
-    cols = st.columns(3)
+    # [DEPRECATED_GUI] cols = st.columns(3)
     for i, s in enumerate(spokes):
         wid = s["workflow_id"]
         hb = hb_map.get(wid)
@@ -285,7 +285,7 @@ def render_agents():
             last_hb = "—"
 
         with cols[i % 3]:
-            st.markdown(f"""
+            # [DEPRECATED_GUI] st.markdown(f"""
             <div class="agent-card">
                 <h4><span class="traffic-dot {dot_class}"></span> {s['name']}</h4>
                 <p>最后心跳: {last_hb}</p>
@@ -300,14 +300,14 @@ def render_agents():
         if hist:
             st.dataframe(pd.DataFrame(hist), use_container_width=True, hide_index=True)
         else:
-            st.info("暂无心跳记录")
+            # [DEPRECATED_GUI] st.info("暂无心跳记录")
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # P0-3. Workflow 运行态
 # ═══════════════════════════════════════════════════════════════════════
 def render_workflow():
-    st.markdown('<h2 class="section-title">⚡ Workflow 运行态</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">⚡ Workflow 运行态</h2>', unsafe_allow_html=True)
 
     tasks = _query_age(
         "SELECT task_id, status, error_log, started_at, finished_at "
@@ -315,7 +315,7 @@ def render_workflow():
     )
 
     if not tasks:
-        st.info("暂无 AKO工作流 记录")
+        # [DEPRECATED_GUI] st.info("暂无 AKO工作流 记录")
         return
 
     latest = tasks[0]
@@ -339,8 +339,8 @@ def render_workflow():
         if sub_tasks:
             blocking_agent = sub_tasks[0]["trigger_agent"]
 
-    st.markdown(f"**当前状态**: {status_label}")
-    st.markdown(f"**阻塞节点**: {blocking_agent}")
+    # [DEPRECATED_GUI] st.markdown(f"**当前状态**: {status_label}")
+    # [DEPRECATED_GUI] st.markdown(f"**阻塞节点**: {blocking_agent}")
 
     wf_steps = ["意图解析", "设计生成", "图纸审查", "报价计算", "成果汇总"]
     if sts == "done":
@@ -373,14 +373,14 @@ def render_workflow():
         bar_html += '<div class="step-pending"></div>' * len(wf_steps)
         bar_html += '</div>'
 
-    st.markdown(bar_html, unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown(bar_html, unsafe_allow_html=True)
     st.caption(" | ".join(wf_steps))
 
     if sts == "failed" and latest.get("error_log"):
-        st.error(f"错误: {latest['error_log'][:500]}")
+        # [DEPRECATED_GUI] st.error(f"错误: {latest['error_log'][:500]}")
 
     st.divider()
-    st.subheader("最近 AKO工作流 任务")
+    # [DEPRECATED_GUI] st.subheader("最近 AKO工作流 任务")
     rows = []
     for t in tasks:
         rows.append({
@@ -396,7 +396,7 @@ def render_workflow():
 # P0-4. 任务队列
 # ═══════════════════════════════════════════════════════════════════════
 def render_task_queue():
-    st.markdown('<h2 class="section-title">📋 任务队列</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">📋 任务队列</h2>', unsafe_allow_html=True)
 
     pending = _query_age("SELECT COUNT(*) as n FROM task_queue WHERE status='pending'")
     running = _query_age("SELECT COUNT(*) as n FROM task_queue WHERE status='running'")
@@ -406,7 +406,7 @@ def render_task_queue():
     rn = running[0]["n"] if running else 0
     fn = failed[0]["n"] if failed else 0
 
-    c1, c2, c3 = st.columns(3)
+    # [DEPRECATED_GUI] c1, c2, c3 = st.columns(3)
     c1.metric("待分发", pn)
     c2.metric("执行中", rn)
     c3.metric("失败", fn)
@@ -419,7 +419,7 @@ def render_task_queue():
     )
 
     if not tasks:
-        st.info("任务队列为空")
+        # [DEPRECATED_GUI] st.info("任务队列为空")
         return
 
     rows = []
@@ -464,7 +464,7 @@ def render_task_queue():
         idx = event.selection["rows"][0]
         if idx < len(tasks):
             tid = tasks[idx]["task_id"]
-            with st.spinner("加载任务详情…"):
+            # [DEPRECATED_GUI] with st.spinner("加载任务详情…"):
                 detail = hub_api.get_task_detail(tid)
             if detail:
                 with st.expander(f"📄 详情: {tid[:20]}…"):
@@ -475,13 +475,13 @@ def render_task_queue():
 # P1-1. 任务提交/触发
 # ═══════════════════════════════════════════════════════════════════════
 def render_task_submit():
-    st.markdown('<h2 class="section-title">🚀 任务提交/触发</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">🚀 任务提交/触发</h2>', unsafe_allow_html=True)
 
     hub_api, list_all_spokes = _get_modules()
     spokes = list_all_spokes()
 
-    with st.container():
-        st.markdown('<div class="form-card">', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] with st.container():
+        # [DEPRECATED_GUI] st.markdown('<div class="form-card">', unsafe_allow_html=True)
 
         # ── 任务描述输入 ──
         intent = st.text_area(
@@ -489,23 +489,23 @@ def render_task_submit():
             height=80, key="submit_intent"
         )
 
-        c1, c2 = st.columns(2)
+        # [DEPRECATED_GUI] c1, c2 = st.columns(2)
         with c1:
-            project_tag = st.text_input("项目标签", placeholder="如 taoli、ako_demo", key="submit_project")
+            # [DEPRECATED_GUI] project_tag = st.text_input("项目标签", placeholder="如 taoli、ako_demo", key="submit_project")
 
         with c2:
             # 直接指定 Agent 快捷入口
             agent_options = ["自动路由"] + [s["name"] for s in spokes]
-            selected_agent = st.selectbox("直接指定 Agent（可选）", agent_options, key="submit_agent")
+            # [DEPRECATED_GUI] selected_agent = st.selectbox("直接指定 Agent（可选）", agent_options, key="submit_agent")
 
-        c1b, c2b = st.columns([1, 3])
+        # [DEPRECATED_GUI] c1b, c2b = st.columns([1, 3])
         with c1b:
-            submitted = st.button("🚀 提交任务", use_container_width=True, type="primary")
+            # [DEPRECATED_GUI] submitted = st.button("🚀 提交任务", use_container_width=True, type="primary")
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        # [DEPRECATED_GUI] st.markdown('</div>', unsafe_allow_html=True)
 
         if submitted and intent.strip():
-            with st.spinner("提交中…"):
+            # [DEPRECATED_GUI] with st.spinner("提交中…"):
                 try:
                     payload = {"intent": intent.strip()}
                     if project_tag.strip():
@@ -520,26 +520,26 @@ def render_task_submit():
                     if hub_api:
                         result = hub_api.submit_task(payload, trigger="dashboard")
                         if result.get("status") == "done":
-                            st.success(f"任务提交成功 — {result.get('task_id', '—')}")
+                            # [DEPRECATED_GUI] st.success(f"任务提交成功 — {result.get('task_id', '—')}")
                             with st.expander("📄 查看结果"):
                                 st.json(result)
                         elif result.get("status") == "failed":
-                            st.error(f"任务失败: {result.get('error_log', '未知错误')[:300]}")
+                            # [DEPRECATED_GUI] st.error(f"任务失败: {result.get('error_log', '未知错误')[:300]}")
                         else:
-                            st.info(f"任务已入队，状态: {result.get('status', '—')}")
+                            # [DEPRECATED_GUI] st.info(f"任务已入队，状态: {result.get('status', '—')}")
                     else:
-                        st.warning("hub_api 未加载，无法提交任务")
+                        # [DEPRECATED_GUI] st.warning("hub_api 未加载，无法提交任务")
                 except Exception as e:
-                    st.error(f"提交异常: {str(e)[:300]}")
+                    # [DEPRECATED_GUI] st.error(f"提交异常: {str(e)[:300]}")
         elif submitted:
-            st.warning("请输入任务描述")
+            # [DEPRECATED_GUI] st.warning("请输入任务描述")
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # P1-2. 知识库检索
 # ═══════════════════════════════════════════════════════════════════════
 def render_knowledge():
-    st.markdown('<h2 class="section-title">📚 知识库检索</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">📚 知识库检索</h2>', unsafe_allow_html=True)
 
     hub_api, _ = _get_modules()
 
@@ -555,10 +555,10 @@ def render_knowledge():
     db_kbs = _query_age("SELECT * FROM knowledge_base ORDER BY updated_at DESC")
 
     # ── 搜索框 ──
-    search_term = st.text_input("🔍 搜索知识库", placeholder="输入关键词检索 Collection 和文档…", key="kb_search")
+    # [DEPRECATED_GUI] search_term = st.text_input("🔍 搜索知识库", placeholder="输入关键词检索 Collection 和文档…", key="kb_search")
 
     # ── 嵌入统计 ──
-    c1, c2, c3, c4 = st.columns(4)
+    # [DEPRECATED_GUI] c1, c2, c3, c4 = st.columns(4)
     total_kb = len(db_kbs) if db_kbs else len(collections)
     c1.metric("知识库总数", total_kb)
     c2.metric("嵌入模型", "bge-m3")
@@ -574,7 +574,7 @@ def render_knowledge():
     st.divider()
 
     # ── Collection 表格 ──
-    st.subheader("知识库列表")
+    # [DEPRECATED_GUI] st.subheader("知识库列表")
     if db_kbs:
         rows = []
         for kb in db_kbs:
@@ -601,11 +601,11 @@ def render_knowledge():
     elif collections:
         st.dataframe(pd.DataFrame(collections), use_container_width=True, hide_index=True)
     else:
-        st.info("暂无知识库数据（knowledge_base 表为空且 hub_api 无返回）")
+        # [DEPRECATED_GUI] st.info("暂无知识库数据（knowledge_base 表为空且 hub_api 无返回）")
 
     # ── 最近入库文档 ──
     st.divider()
-    st.subheader("最近入库文档")
+    # [DEPRECATED_GUI] st.subheader("最近入库文档")
     recent_files = _query_age(
         "SELECT file_id, source_agent, rel_path, file_type, project_tag, created_at "
         "FROM file_registry ORDER BY created_at DESC LIMIT 20"
@@ -623,14 +623,14 @@ def render_knowledge():
             })
         st.dataframe(pd.DataFrame(frows), use_container_width=True, hide_index=True)
     else:
-        st.info("暂无文件记录")
+        # [DEPRECATED_GUI] st.info("暂无文件记录")
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # P1-3. 同步监控
 # ═══════════════════════════════════════════════════════════════════════
 def render_sync():
-    st.markdown('<h2 class="section-title">🔄 同步监控</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">🔄 同步监控</h2>', unsafe_allow_html=True)
 
     hub_api, _ = _get_modules()
 
@@ -648,7 +648,7 @@ def render_sync():
     sync_root_display = paths.get("sync_root", sync_root)
     root_exists = Path(sync_root_display).exists() if sync_root_display else False
 
-    c1, c2, c3 = st.columns(3)
+    # [DEPRECATED_GUI] c1, c2, c3 = st.columns(3)
     c1.metric("Sync Root", "🟢 可访问" if root_exists else "🔴 不可访问")
     c1.caption(sync_root_display)
 
@@ -667,7 +667,7 @@ def render_sync():
 
     # ── 外部接口健康 ──
     st.divider()
-    st.subheader("外部接口健康检查")
+    # [DEPRECATED_GUI] st.subheader("外部接口健康检查")
     ext_endpoints = [
         ("百度云盘 API", "https://pan.baidu.com"),
         ("Ollama",        "http://127.0.0.1:11434"),
@@ -686,7 +686,7 @@ def render_sync():
 
     # ── 文件变更事件 ──
     st.divider()
-    st.subheader("文件变更事件（sync_log）")
+    # [DEPRECATED_GUI] st.subheader("文件变更事件（sync_log）")
     sync_events = _query_age(
         "SELECT file_id, machine_id, status, checked_at FROM sync_log ORDER BY checked_at DESC LIMIT 30"
     )
@@ -702,21 +702,21 @@ def render_sync():
             })
         st.dataframe(pd.DataFrame(erows), use_container_width=True, hide_index=True)
     else:
-        st.info("暂无同步事件记录")
+        # [DEPRECATED_GUI] st.info("暂无同步事件记录")
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # P1-4. 日志流
 # ═══════════════════════════════════════════════════════════════════════
 def render_logs():
-    st.markdown('<h2 class="section-title">📜 实时日志流</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">📜 实时日志流</h2>', unsafe_allow_html=True)
 
     # ── 过滤控制 ──
-    c1, c2, c3 = st.columns([2, 2, 1])
+    # [DEPRECATED_GUI] c1, c2, c3 = st.columns([2, 2, 1])
     with c1:
-        level_filter = st.selectbox("日志级别", ["ALL", "ERROR", "WARNING", "INFO", "DEBUG"], key="log_level")
+        # [DEPRECATED_GUI] level_filter = st.selectbox("日志级别", ["ALL", "ERROR", "WARNING", "INFO", "DEBUG"], key="log_level")
     with c2:
-        log_source = st.selectbox("来源", ["全部", "Agent 输出", "路由决策", "任务错误", "告警"], key="log_source")
+        # [DEPRECATED_GUI] log_source = st.selectbox("来源", ["全部", "Agent 输出", "路由决策", "任务错误", "告警"], key="log_source")
     with c3:
         auto_refresh = st.checkbox("自动刷新", value=False, key="log_auto_refresh")
 
@@ -792,9 +792,9 @@ def render_logs():
         log_lines = [l for l in log_lines if l["level"] == level_filter]
 
     # ── 渲染日志容器 ──
-    st.markdown(f"共 {len(log_lines)} 条日志", help="上限 300 条")
+    # [DEPRECATED_GUI] st.markdown(f"共 {len(log_lines)} 条日志", help="上限 300 条")
     if not log_lines:
-        st.info("暂无日志")
+        # [DEPRECATED_GUI] st.info("暂无日志")
         return
 
     html = '<div class="log-container">'
@@ -808,14 +808,14 @@ def render_logs():
         html += f'<span>[{src}]</span> {msg}</div>\n'
     html += '</div>'
 
-    st.markdown(html, unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown(html, unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # P2-1. 任务历史
 # ═══════════════════════════════════════════════════════════════════════
 def render_task_history():
-    st.markdown('<h2 class="section-title">📊 任务历史</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">📊 任务历史</h2>', unsafe_allow_html=True)
 
     hub_api, list_all_spokes = _get_modules()
     spokes = list_all_spokes()
@@ -823,11 +823,11 @@ def render_task_history():
     agent_wid_map = {s["workflow_id"]: s["name"] for s in spokes}
 
     # Agent 过滤下拉
-    c1, c2 = st.columns([2, 1])
+    # [DEPRECATED_GUI] c1, c2 = st.columns([2, 1])
     with c1:
-        agent_filter = st.selectbox("按 Agent 过滤", ["全部"] + agent_names, key="hist_agent")
+        # [DEPRECATED_GUI] agent_filter = st.selectbox("按 Agent 过滤", ["全部"] + agent_names, key="hist_agent")
     with c2:
-        limit = st.selectbox("显示条数", [20, 50, 100], index=1, key="hist_limit")
+        # [DEPRECATED_GUI] limit = st.selectbox("显示条数", [20, 50, 100], index=1, key="hist_limit")
 
     # 条件构建
     where = "WHERE status IN ('done', 'failed')"
@@ -842,13 +842,13 @@ def render_task_history():
     )
 
     if not tasks:
-        st.info("暂无历史任务记录")
+        # [DEPRECATED_GUI] st.info("暂无历史任务记录")
         return
 
     # 统计
     done_count = sum(1 for t in tasks if t["status"] == "done")
     fail_count = sum(1 for t in tasks if t["status"] == "failed")
-    c1, c2, c3 = st.columns(3)
+    # [DEPRECATED_GUI] c1, c2, c3 = st.columns(3)
     c1.metric("已完成", done_count)
     c2.metric("失败", fail_count)
     c3.metric("平均耗时", _calc_avg_duration(tasks))
@@ -884,21 +884,21 @@ def render_task_history():
         idx = event.selection["rows"][0]
         if idx < len(tasks):
             tid = tasks[idx]["task_id"]
-            with st.spinner("加载任务详情…"):
+            # [DEPRECATED_GUI] with st.spinner("加载任务详情…"):
                 try:
                     detail = hub_api.get_task_detail(tid)
                     if detail:
                         with st.expander(f"📄 输出摘要: {tid[:24]}…"):
                             if isinstance(detail, dict):
                                 summary = detail.get("summary", detail.get("output", ""))
-                                st.markdown(f"**状态**: {detail.get('status', '—')}")
+                                # [DEPRECATED_GUI] st.markdown(f"**状态**: {detail.get('status', '—')}")
                                 if summary:
                                     st.text(summary[:2000])
                                 st.json({k: v for k, v in detail.items() if k not in ("summary", "output")})
                             else:
                                 st.json(detail)
                 except Exception as e:
-                    st.warning(f"无法加载详情: {e}")
+                    # [DEPRECATED_GUI] st.warning(f"无法加载详情: {e}")
 
 
 def _calc_duration(started: Optional[str], finished: Optional[str]) -> str:
@@ -937,7 +937,7 @@ def _calc_avg_duration(tasks: List[dict]) -> str:
 # P2-2. 错误追踪
 # ═══════════════════════════════════════════════════════════════════════
 def render_error_tracking():
-    st.markdown('<h2 class="section-title">❌ 错误追踪</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">❌ 错误追踪</h2>', unsafe_allow_html=True)
 
     tab1, tab2, tab3 = st.tabs(["🔴 失败任务", "⚠️ Agent 异常退出", "🧩 嵌入失败"])
 
@@ -956,7 +956,7 @@ def _render_failed_tasks():
         "FROM task_queue WHERE status='failed' ORDER BY started_at DESC LIMIT 50"
     )
     if not failed:
-        st.info("没有失败任务")
+        # [DEPRECATED_GUI] st.info("没有失败任务")
         return
 
     st.metric("失败任务总数", len(failed))
@@ -966,10 +966,10 @@ def _render_failed_tasks():
         agent = f["trigger_agent"] or "—"
         err_msg = (f["error_log"] or "无错误信息")[:300]
         with st.expander(f"❌ {tid} — {agent} — {(f['started_at'] or '')[:19]}"):
-            st.markdown(f"**工作流**: {f['workflow_id'] or '—'}")
-            st.markdown(f"**Agent**: {agent}")
-            st.markdown(f"**时间**: {(f['started_at'] or '')[:19]} → {(f['finished_at'] or '')[:19]}")
-            st.error(err_msg)
+            # [DEPRECATED_GUI] st.markdown(f"**工作流**: {f['workflow_id'] or '—'}")
+            # [DEPRECATED_GUI] st.markdown(f"**Agent**: {agent}")
+            # [DEPRECATED_GUI] st.markdown(f"**时间**: {(f['started_at'] or '')[:19]} → {(f['finished_at'] or '')[:19]}")
+            # [DEPRECATED_GUI] st.error(err_msg)
 
 
 def _render_agent_exits():
@@ -980,7 +980,7 @@ def _render_agent_exits():
         "ORDER BY created_at DESC LIMIT 50"
     )
     if not alerts:
-        st.info("没有告警记录")
+        # [DEPRECATED_GUI] st.info("没有告警记录")
         return
 
     st.metric("告警总数", len(alerts))
@@ -1007,7 +1007,7 @@ def _render_embed_failures():
     )
 
     if not kb_errors:
-        st.info("没有嵌入失败记录")
+        # [DEPRECATED_GUI] st.info("没有嵌入失败记录")
         return
 
     st.metric("嵌入失败", len(kb_errors))
@@ -1028,7 +1028,7 @@ def _render_embed_failures():
 # P2-3. 配置面板
 # ═══════════════════════════════════════════════════════════════════════
 def render_config():
-    st.markdown('<h2 class="section-title">⚙️ 配置面板</h2>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<h2 class="section-title">⚙️ 配置面板</h2>', unsafe_allow_html=True)
 
     tab1, tab2, tab3, tab4 = st.tabs(["🔗 API 端点", "🧠 模型路由", "📦 知识库参数", "🔧 Spoke 注册表"])
 
@@ -1078,21 +1078,21 @@ def _render_api_endpoints():
 
     # 当前 Hub 状态
     st.divider()
-    st.subheader("Hub 连接状态")
+    # [DEPRECATED_GUI] st.subheader("Hub 连接状态")
     hub_api, _ = _get_modules()
     if hub_api:
         try:
             status = hub_api.hub_status()
             st.json(status if isinstance(status, dict) else {"status": str(status)})
         except Exception as e:
-            st.error(f"Hub 不可达: {e}")
+            # [DEPRECATED_GUI] st.error(f"Hub 不可达: {e}")
     else:
-        st.warning("hub_api 未加载")
+        # [DEPRECATED_GUI] st.warning("hub_api 未加载")
 
 
 def _render_model_routes():
     """模型路由规则展示"""
-    st.markdown("### 路由链配置")
+    # [DEPRECATED_GUI] st.markdown("### 路由链配置")
 
     # 从 ako_geo/config.py 读取路由
     routes = {}
@@ -1104,7 +1104,7 @@ def _render_model_routes():
             "短文本润色 (Format Short)": LLM_ROUTE_FORMAT_SHORT,
         }
     except ImportError:
-        st.warning("ako_geo.config 不可用，显示默认配置")
+        # [DEPRECATED_GUI] st.warning("ako_geo.config 不可用，显示默认配置")
         routes = {
             "大纲生成 (Outline)": {"primary": "deepseek", "fallback": ["kimi", "ollama"]},
             "长文本润色 (Format Long)": {"primary": "kimi", "fallback": ["deepseek", "ollama"]},
@@ -1130,14 +1130,14 @@ def _render_model_routes():
 
     # 模型列表
     st.divider()
-    st.markdown("### 可用模型")
+    # [DEPRECATED_GUI] st.markdown("### 可用模型")
     try:
         from core.ako_config.settings import _LLM_ENV_MAP, ModelRouting
         env_rows = [{"模型": k, "环境变量": v} for k, v in _LLM_ENV_MAP.items()]
         st.dataframe(pd.DataFrame(env_rows), use_container_width=True, hide_index=True)
         st.caption(f"创意模型: {ModelRouting.creative or '—'} | 降级模型: {ModelRouting.fallback or '—'}")
     except ImportError:
-        st.info("settings 模块不可用")
+        # [DEPRECATED_GUI] st.info("settings 模块不可用")
 
 
 def _render_kb_params():
@@ -1149,8 +1149,8 @@ def _render_kb_params():
         cfg = {}
 
     # 分块参数
-    st.markdown("### 分块参数")
-    c1, c2, c3 = st.columns(3)
+    # [DEPRECATED_GUI] st.markdown("### 分块参数")
+    # [DEPRECATED_GUI] c1, c2, c3 = st.columns(3)
     chunking = cfg.get("chunking", {})
     c1.metric("Chunk Size", chunking.get("size", 768))
     c2.metric("Overlap", chunking.get("overlap", 128))
@@ -1160,26 +1160,26 @@ def _render_kb_params():
     # 混合权重
     if retrieval == "hybrid":
         weights = cfg.get("hybrid_weights", {})
-        st.markdown("### 混合检索权重")
-        w1, w2, w3 = st.columns(3)
+        # [DEPRECATED_GUI] st.markdown("### 混合检索权重")
+        # [DEPRECATED_GUI] w1, w2, w3 = st.columns(3)
         w1.metric("Dense", f"{weights.get('dense', 0.33):.2f}")
         w2.metric("Sparse", f"{weights.get('sparse', 0.33):.2f}")
         w3.metric("ColBERT", f"{weights.get('colbert', 0.34):.2f}")
 
     # Collection 列表
     st.divider()
-    st.markdown("### Knowledge Base Collections")
+    # [DEPRECATED_GUI] st.markdown("### Knowledge Base Collections")
     collections = cfg.get("kb_collections", [])
     if collections:
         rows = [{"名称": c.get("name", c) if isinstance(c, dict) else c} for c in collections]
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     else:
-        st.info("未配置 kb_collections")
+        # [DEPRECATED_GUI] st.info("未配置 kb_collections")
 
     # 同步根路径
     st.divider()
     sync_root = cfg.get("sync_root", "—")
-    st.markdown(f"**Sync Root**: `{sync_root}`")
+    # [DEPRECATED_GUI] st.markdown(f"**Sync Root**: `{sync_root}`")
 
 
 def _render_spoke_registry():
@@ -1188,7 +1188,7 @@ def _render_spoke_registry():
     spokes = list_all_spokes()
 
     if not spokes:
-        st.info("未找到已注册 Spoke")
+        # [DEPRECATED_GUI] st.info("未找到已注册 Spoke")
         return
 
     st.metric("已注册 Spoke 数", len(spokes))
@@ -1212,7 +1212,7 @@ def _render_spoke_registry():
 
     # 路由规则摘要
     st.divider()
-    st.markdown("### 路由规则摘要")
+    # [DEPRECATED_GUI] st.markdown("### 路由规则摘要")
     try:
         import yaml
         rules_path = PROJECT_ROOT / "config" / "routing_rules.yaml"
@@ -1221,14 +1221,14 @@ def _render_spoke_registry():
                 rules = yaml.safe_load(f)
             composite = rules.get("composite_tasks", [])
             keywords = rules.get("keyword_routes", [])
-            st.markdown(f"**复合任务**: {len(composite)} 条 | **关键词路由**: {len(keywords)} 条")
+            # [DEPRECATED_GUI] st.markdown(f"**复合任务**: {len(composite)} 条 | **关键词路由**: {len(keywords)} 条")
             with st.expander("查看路由关键字"):
                 kw_rows = [{"关键词": k.get("keywords", []), "Agent": k.get("target", "—"), "置信度": k.get("confidence", "—")} for k in keywords]
                 st.dataframe(pd.DataFrame(kw_rows), use_container_width=True, hide_index=True)
         else:
-            st.info("routing_rules.yaml 不存在")
+            # [DEPRECATED_GUI] st.info("routing_rules.yaml 不存在")
     except Exception as e:
-        st.warning(f"无法读取路由规则: {e}")
+        # [DEPRECATED_GUI] st.warning(f"无法读取路由规则: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1256,9 +1256,9 @@ PAGE_MAP = {f"{icon} {name}": fn for icon, name, fn in PAGES}
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = PAGE_OPTIONS[0]
 
-with st.sidebar:
-    st.markdown("## 🏗️ AKO Hub")
-    st.markdown("*运维仪表盘 v3.2*")
+# [DEPRECATED_GUI] with st.sidebar:
+    # [DEPRECATED_GUI] st.markdown("## 🏗️ AKO Hub")
+    # [DEPRECATED_GUI] st.markdown("*运维仪表盘 v3.2*")
     st.divider()
 
     # P0/P1/P2 分组导航
@@ -1266,7 +1266,7 @@ with st.sidebar:
     p1_count = 4
     p2_count = 3
 
-    st.markdown('<p class="nav-separator">P0 · 核心监控</p>', unsafe_allow_html=True)
+    # [DEPRECATED_GUI] st.markdown('<p class="nav-separator">P0 · 核心监控</p>', unsafe_allow_html=True)
     st.radio(
         "nav", PAGE_OPTIONS,
         label_visibility="collapsed", key="nav_page",
@@ -1274,7 +1274,7 @@ with st.sidebar:
         if st.session_state.nav_page in PAGE_OPTIONS else 0
     )
     st.divider()
-    if st.button("🔄 刷新数据", use_container_width=True):
+    # [DEPRECATED_GUI] if st.button("🔄 刷新数据", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     st.caption(f"© AKObuild | {datetime.now().strftime('%Y-%m-%d %H:%M')}")

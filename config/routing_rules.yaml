@@ -1,151 +1,109 @@
-# ============================================================================
-# routing_rules.yaml — AKO Hub 意图路由规则配置
-# 文档编号: AGE-TECH-AKO-HUB-023
-# ============================================================================
-# 格式说明：
-#   - composite_tasks: 复合任务定义，trigger 支持 AND / OR 布尔表达式
-#   - keyword_routes: 关键词 → Agent 映射，优先级低于 composite_tasks
-#   - 修改后自动热加载（基于文件 mtime）
-# ============================================================================
-
-# ── 复合任务 ──────────────────────────────────────────────────────────
 composite_tasks:
-
-  # ── 复杂建筑报价 ──
-  - name: "复杂建筑报价"
-    description: "含布局分析 + 成本报价的复合任务"
-    trigger: "报价 AND (复杂 OR 非标 OR 特殊 OR 定制 OR 别墅)"
-    sequence:
-      - agent: AKO_layout_agent
-        action: "空间布局分析"
-        inputs:
-          mode: "cost_optimization"
-      - agent: AKO_quote_agent
-        action: "生成报价"
-        inputs: {}
-
-  # ── 媒体内容生产 ──
-  - name: "媒体内容生产"
-    description: "文案写作 → 图片生成 → 排版输出"
-    trigger: "推文 AND (配图 OR 排版 OR 海报)"
-    sequence:
-      - agent: AKO_media_agent
-        action: "文案生成"
-        inputs:
-          style: "公众号"
-      - agent: AKO_media_agent
-        action: "图片建议"
-        inputs: {}
-      - agent: AKO_layout_agent
-        action: "图文排版"
-        inputs:
-          format: "公众号"
-
-  # ── 图纸检查 + 报告 ──
-  - name: "图纸审查报告"
-    description: "审图 + 生成审查报告"
-    trigger: "(审图 OR 图纸) AND (报告 OR 报表 OR 总结)"
-    sequence:
-      - agent: AKO_drawing_inspector
-        action: "图纸审查"
-        inputs: {}
-      - agent: AKO_reports
-        action: "生成审查报告"
-        inputs:
-          report_type: "inspection"
-
-  # ── 建筑设计 + 报价 ──
-  - name: "建筑设计报价"
-    description: "方案设计 + 成本报价的复合任务"
-    trigger: "(设计 OR 方案) AND (报价 OR 成本 OR 预算)"
-    sequence:
-      - agent: AKO_architect_agent
-        action: "方案设计"
-        inputs: {}
-      - agent: AKO_quote_agent
-        action: "成本报价"
-        inputs: {}
-
-  # ── 表单提取 + 报表 ──
-  - name: "数据提取报表"
-    description: "表单数据提取 + 自动生成报表"
-    trigger: "(提取 OR 表单) AND 报表"
-    sequence:
-      - agent: AKO_form_extractor
-        action: "数据提取"
-        inputs: {}
-      - agent: AKO_reports
-        action: "生成报表"
-        inputs:
-          report_type: "data_summary"
-
-# ── 关键词路由 ──────────────────────────────────────────────────────────
+- name: 复杂建筑报价
+  description: 含布局分析 + 成本报价的复合任务
+  trigger: 报价 AND (复杂 OR 非标 OR 特殊 OR 定制 OR 别墅)
+  sequence:
+  - agent: AKO_layout_agent
+    action: 空间布局分析
+    inputs:
+      mode: cost_optimization
+  - agent: AKO_quote_agent
+    action: 生成报价
+    inputs: {}
+- name: 媒体内容生产
+  description: 文案写作 → 图片生成 → 排版输出
+  trigger: 推文 AND (配图 OR 排版 OR 海报)
+  sequence:
+  - agent: AKO_media_agent
+    action: 文案生成
+    inputs:
+      style: 公众号
+  - agent: AKO_media_agent
+    action: 图片建议
+    inputs: {}
+  - agent: AKO_layout_agent
+    action: 图文排版
+    inputs:
+      format: 公众号
+- name: 图纸审查报告
+  description: 审图 + 生成审查报告
+  trigger: (审图 OR 图纸) AND (报告 OR 报表 OR 总结)
+  sequence:
+  - agent: AKO_drawing_inspector
+    action: 图纸审查
+    inputs: {}
+  - agent: AKO_reports
+    action: 生成审查报告
+    inputs: {}
+- name: 建筑设计报价
+  description: 方案设计 + 成本报价的复合任务
+  trigger: (设计 OR 方案) AND (报价 OR 成本 OR 预算)
+  sequence:
+  - agent: AKO_architect_agent
+    action: 方案设计
+    inputs: {}
+  - agent: AKO_quote_agent
+    action: 成本报价
+    inputs: {}
+- name: 数据提取报表
+  description: 表单数据提取 + 自动生成报表
+  trigger: (提取 OR 表单) AND 报表
+  sequence:
+  - agent: AKO_form_extractor
+    action: 数据提取
+    inputs: {}
+  - agent: AKO_reports
+    action: 生成报表
+    inputs: {}
 keyword_routes:
-
-  - keyword: "报价"
-    agent_id: AKO_quote_agent
-    confidence: 0.95
-
-  - keyword: "成本"
-    agent_id: AKO_quote_agent
-    confidence: 0.90
-
-  - keyword: "预算"
-    agent_id: AKO_quote_agent
-    confidence: 0.85
-
-  - keyword: "文案"
-    agent_id: AKO_media_agent
-    confidence: 0.90
-
-  - keyword: "文章"
-    agent_id: AKO_media_agent
-    confidence: 0.85
-
-  - keyword: "排版"
-    agent_id: AKO_layout_agent
-    confidence: 0.90
-
-  - keyword: "海报"
-    agent_id: AKO_layout_agent
-    confidence: 0.85
-
-  - keyword: "审图"
-    agent_id: AKO_drawing_inspector
-    confidence: 0.95
-
-  - keyword: "规范"
-    agent_id: AKO_drawing_inspector
-    confidence: 0.80
-
-  - keyword: "识别"
-    agent_id: AKO_image_analyzer
-    confidence: 0.85
-
-  - keyword: "效果图"
-    agent_id: AKO_image_analyzer
-    confidence: 0.85
-
-  - keyword: "报告"
-    agent_id: AKO_reports
-    confidence: 0.90
-
-  - keyword: "周报"
-    agent_id: AKO_reports
-    confidence: 0.95
-
-  - keyword: "月报"
-    agent_id: AKO_reports
-    confidence: 0.95
-
-  - keyword: "监控"
-    agent_id: AKO_netwatch_agent
-    confidence: 0.85
-
-  - keyword: "商业"
-    agent_id: AKO_business_agent
-    confidence: 0.80
-
-  - keyword: "知识"
-    agent_id: AKO_knowledge
-    confidence: 0.80
+- keyword: 报价
+  agent_id: AKO_quote_agent
+  confidence: 0.95
+- keyword: 成本
+  agent_id: AKO_quote_agent
+  confidence: 0.9
+- keyword: 预算
+  agent_id: AKO_quote_agent
+  confidence: 0.85
+- keyword: 文案
+  agent_id: AKO_media_agent
+  confidence: 0.9
+- keyword: 文章
+  agent_id: AKO_media_agent
+  confidence: 0.85
+- keyword: 排版
+  agent_id: AKO_layout_agent
+  confidence: 0.9
+- keyword: 海报
+  agent_id: AKO_layout_agent
+  confidence: 0.85
+- keyword: 审图
+  agent_id: AKO_drawing_inspector
+  confidence: 0.95
+- keyword: 规范
+  agent_id: AKO_drawing_inspector
+  confidence: 0.8
+- keyword: 识别
+  agent_id: AKO_image_analyzer
+  confidence: 0.85
+- keyword: 效果图
+  agent_id: AKO_image_analyzer
+  confidence: 0.85
+- keyword: 报告
+  agent_id: AKO_reports
+  confidence: 0.9
+- keyword: 周报
+  agent_id: AKO_reports
+  confidence: 0.95
+- keyword: 月报
+  agent_id: AKO_reports
+  confidence: 0.95
+- keyword: 监控
+  agent_id: AKO_netwatch_agent
+  confidence: 0.85
+- keyword: 商业
+  agent_id: AKO_business_agent
+  confidence: 0.8
+- keyword: 知识
+  agent_id: AKO_knowledge
+  confidence: 0.8

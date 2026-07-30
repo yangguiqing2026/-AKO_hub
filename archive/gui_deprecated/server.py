@@ -14,10 +14,10 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, Request, Query, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+# [DEPRECATED_GUI] from fastapi import FastAPI, Request, Query, HTTPException
+# [DEPRECATED_GUI] from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+# [DEPRECATED_GUI] from fastapi.staticfiles import StaticFiles
+# [DEPRECATED_GUI] from fastapi.templating import Jinja2Templates
 import uvicorn
 
 # ── 路径 ──────────────────────────────────────────────────────────
@@ -210,20 +210,20 @@ async def lifespan(app: FastAPI):
     poller.cancel()
 
 
-app = FastAPI(title="AKO Hub 调度控制台", version="1.0", lifespan=lifespan)
+# [DEPRECATED_GUI] app = FastAPI(title="AKO Hub 调度控制台", version="1.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 # ── 页面 ───────────────────────────────────────────────────────────
 
-@app.get("/", response_class=HTMLResponse)
+# [DEPRECATED_GUI] @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(request, "index.html")
 
 
 # ── SSE 流 ─────────────────────────────────────────────────────────
 
-@app.get("/api/stream")
+# [DEPRECATED_GUI] @app.get("/api/stream")
 async def api_stream():
     return StreamingResponse(
         sse.subscribe(),
@@ -238,7 +238,7 @@ async def api_stream():
 
 # ── 系统状态 ───────────────────────────────────────────────────────
 
-@app.get("/api/status")
+# [DEPRECATED_GUI] @app.get("/api/status")
 async def api_status():
     conn = get_db()
     try:
@@ -250,7 +250,7 @@ async def api_status():
 
 # ── Agent 列表 ─────────────────────────────────────────────────────
 
-@app.get("/api/agents")
+# [DEPRECATED_GUI] @app.get("/api/agents")
 async def api_agents():
     conn = get_db()
     try:
@@ -287,7 +287,7 @@ async def api_agents():
 
 # ── 告警 ───────────────────────────────────────────────────────────
 
-@app.get("/api/alerts")
+# [DEPRECATED_GUI] @app.get("/api/alerts")
 async def api_alerts(resolved: bool = False):
     conn = get_db()
     try:
@@ -300,7 +300,7 @@ async def api_alerts(resolved: bool = False):
         conn.close()
 
 
-@app.post("/api/alerts/{alert_id}/ack")
+# [DEPRECATED_GUI] @app.post("/api/alerts/{alert_id}/ack")
 async def api_ack_alert(alert_id: int):
     conn = get_db()
     try:
@@ -313,7 +313,7 @@ async def api_ack_alert(alert_id: int):
 
 # ── 日志 ───────────────────────────────────────────────────────────
 
-@app.get("/api/logs")
+# [DEPRECATED_GUI] @app.get("/api/logs")
 async def api_logs(
     agent: Optional[str] = None,
     level: Optional[str] = None,
@@ -351,7 +351,7 @@ async def api_logs(
 
 # ── 任务 ───────────────────────────────────────────────────────────
 
-@app.get("/api/tasks")
+# [DEPRECATED_GUI] @app.get("/api/tasks")
 async def api_tasks(status: Optional[str] = None, limit: int = Query(default=50, ge=10, le=200)):
     conn = get_db()
     try:
@@ -367,7 +367,7 @@ async def api_tasks(status: Optional[str] = None, limit: int = Query(default=50,
         conn.close()
 
 
-@app.post("/api/tasks")
+# [DEPRECATED_GUI] @app.post("/api/tasks")
 async def api_create_task(request: Request):
     body = await request.json()
     title = body.get("title", "未命名任务")
@@ -414,14 +414,14 @@ def _check_sync_status() -> dict:
     }
 
 
-@app.get("/api/sync-status")
+# [DEPRECATED_GUI] @app.get("/api/sync-status")
 async def api_sync_status():
     return _check_sync_status()
 
 
 # ── 配置 ───────────────────────────────────────────────────────────
 
-@app.get("/api/config")
+# [DEPRECATED_GUI] @app.get("/api/config")
 async def api_config():
     """返回当前系统配置摘要。"""
     hub_yaml = PROJECT_ROOT / "config" / "hub.yaml"
@@ -451,4 +451,4 @@ async def api_config():
 if __name__ == "__main__":
     print(f"AKO Hub 调度控制台启动: http://localhost:7863")
     print(f"DB: {DB_PATH}")
-    uvicorn.run(app, host="0.0.0.0", port=7863, log_level="info")
+    # [DEPRECATED_GUI] uvicorn.run(app, host="0.0.0.0", port=7863, log_level="info")

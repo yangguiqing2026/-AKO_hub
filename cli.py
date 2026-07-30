@@ -55,7 +55,7 @@ def _run_in_dir(cwd: str, cmd: list, python_args: list = None):
     env["PYTHONIOENCODING"] = "utf-8"
 
     try:
-        result = subprocess.run(
+        # [DEPRECATED_GUI] result = subprocess.run(
             full_cmd,
             cwd=cwd,
             env=env,
@@ -97,7 +97,7 @@ def _run_spoke(spoke_key: str, script: str, args: list):
     env["PYTHONIOENCODING"] = "utf-8"
 
     try:
-        result = subprocess.run(cmd, cwd=spoke_dir, env=env)
+        # [DEPRECATED_GUI] result = subprocess.run(cmd, cwd=spoke_dir, env=env)
         return result.returncode
     except KeyboardInterrupt:
         print("\n  已中断")

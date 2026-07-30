@@ -1,8 +1,8 @@
 # AKO 统一调度平台技术白皮书
 
 **文档编号：** AGE-TECH-AKO-HUB-001  
-**版本：** v0.2  
-**编制日期：** 2026-07-14  
+**版本：** v0.3  
+**编制日期：** 2026-07-31  
 **编制人：** 技术架构组  
 **适用范围：** AKO 智能体体系  
 **密级：** 内部技术资料
@@ -29,6 +29,23 @@
 | A-12 | Agent | AKO_layout_agent | 智能排版 | 本地 Python | importlib | 已运行 |
 | A-13 | Agent | AKO_form_extractor | 表单数据提取 | 本地 Python (:5003) | importlib | 已运行 |
 | A-14 | Agent | AKO_netwatch_agent | 网络监控 | 本地 Python | importlib | 已运行 |
+| A-15 | Agent | AKO_code_compliance | 规范合规校验 | 本地 Python | importlib | 已运行 |
+| A-16 | Agent | AKO_material_selector | 材料选型 | 本地 Python | importlib | 已运行 |
+| A-17 | Agent | AKO_energy_analyzer | 能耗分析 | 本地 Python | importlib | 已运行 |
+| A-18 | Agent | AKO_fire_safety | 消防设计 | 本地 Python | importlib | 已运行 |
+| A-19 | Agent | AKO_accessibility | 无障碍设计 | 本地 Python | importlib | 已运行 |
+| A-20 | Agent | AKO_site_planner | 场地规划 | 本地 Python | importlib | 已运行 |
+| A-21 | Agent | AKO_mep_engineer | 机电设计 | 本地 Python | importlib | 已运行 |
+| A-22 | Agent | AKO_interior_designer | 室内设计 | 本地 Python | importlib | 已运行 |
+| A-23 | Agent | AKO_landscape | 景观设计 | 本地 Python | importlib | 已运行 |
+| A-24 | Agent | AKO_project_manager | 项目管理 | 本地 Python | importlib | 已运行 |
+| A-25 | Agent | AKO_cost_estimator | 造价估算 | 本地 Python | importlib | 已运行 |
+| A-26 | Agent | AKO_bim_exporter | BIM导出 | 本地 Python | importlib | 已运行 |
+| A-27 | Agent | AKO_document_writer | 文档撰写 | 本地 Python | importlib | 已运行 |
+| A-28 | Agent | AKO_safety_inspector | 安全巡检 | 本地 Python | importlib | 已运行 |
+| A-29 | Agent | AKO_quality_inspector | 质量检查 | 本地 Python | importlib | 已运行 |
+| A-30 | Agent | AKO_scheduler | 施工排期 | 本地 Python | importlib | 已运行 |
+| A-31 | Agent | AKO_surveyor | 测量测绘 | 本地 Python | importlib | 已运行 |
 | I-01 | 基础设施 | 蒲公英组网 | 点对点 VPN | 双机互通 | — | 已运行 |
 | I-02 | 基础设施 | 百度云盘 | 文件级同步 | 双机共享 | — | 已运行 |
 | I-03 | 基础设施 | AKO Hub（调度中心） | Streamlit + LangGraph | 本地 Python (:7860) | — | 已运行 |
@@ -425,6 +442,24 @@ class MasterState(TypedDict):
 | AKO_layout_agent | 智能排版 | Agent | — | layout_output | importlib | 已注册 |
 | AKO_form_extractor | 表单数据提取 | Agent | — | form_extractor_output | importlib | 已注册 |
 | AKO_netwatch_agent | 网络监控 | Agent | — | netwatch_output | importlib | 已注册 |
+| AKO_code_compliance | 规范合规校验 | Agent | ako_building_codes | compliance_output | importlib | 已注册 |
+| AKO_material_selector | 材料选型 | Agent | ako_material_db | material_output | importlib | 已注册 |
+| AKO_energy_analyzer | 能耗分析 | Agent | — | energy_output | importlib | 已注册 |
+| AKO_fire_safety | 消防设计 | Agent | ako_fire_codes | fire_safety_output | importlib | 已注册 |
+| AKO_accessibility | 无障碍设计 | Agent | ako_accessibility_codes | accessibility_output | importlib | 已注册 |
+| AKO_site_planner | 场地规划 | Agent | — | site_output | importlib | 已注册 |
+| AKO_mep_engineer | 机电设计 | Agent | — | mep_output | importlib | 已注册 |
+| AKO_interior_designer | 室内设计 | Agent | — | interior_output | importlib | 已注册 |
+| AKO_landscape | 景观设计 | Agent | — | landscape_output | importlib | 已注册 |
+| AKO_project_manager | 项目管理 | Agent | — | project_output | importlib | 已注册 |
+| AKO_cost_estimator | 造价估算 | Agent | ako_cost_database | cost_output | importlib | 已注册 |
+| AKO_bim_exporter | BIM导出 | Agent | — | bim_output | importlib | 已注册 |
+| AKO_document_writer | 文档撰写 | Agent | — | document_output | importlib | 已注册 |
+| AKO_safety_inspector | 安全巡检 | Agent | ako_safety_codes | safety_output | importlib | 已注册 |
+| AKO_quality_inspector | 质量检查 | Agent | — | quality_output | importlib | 已注册 |
+| AKO_scheduler | 施工排期 | Agent | — | schedule_output | importlib | 已注册 |
+| AKO_surveyor | 测量测绘 | Agent | — | survey_output | importlib | 已注册 |
+| AKO_hub | 总线调度中枢 | Agent | — | — | — | 已注册 |
 
 ---
 
@@ -515,6 +550,7 @@ class MasterState(TypedDict):
 |------|------|---------|--------|
 | v0.1 | 2026-06-15 | 初稿，P0–P2 架构定义 | 技术架构组 |
 | v0.2 | 2026-07-14 | 14 Spoke 全量注册、双调度模式、Streamlit UI、§1.1/§2.2/§2.3/§6.3 同步更新 | 技术架构组 |
+| v0.3 | 2026-07-31 | 31 Spoke 全量注册 + AKO_hub 自注册 + agent_card/白皮书同步修复，§1.1/§6.3 补全 32 Agent | 技术架构组 |
 
 ---
 

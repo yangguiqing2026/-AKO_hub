@@ -17,7 +17,7 @@ web_ui.py: 基于 Gradio 构建的交互式 Web 界面，提供任务管理、�
 文档编号: AGE-TECH-AKO-HUB-002 §WebUI
 """
 
-import gradio as gr
+# [DEPRECATED_GUI] import gradio as gr
 import json
 from pathlib import Path
 from typing import Dict, Any, List
@@ -469,53 +469,53 @@ def _format_spoke_result(result: dict) -> str:
 def create_interface():
     """创建并配置 Gradio 界面。"""
     
-    with gr.Blocks(
+    # [DEPRECATED_GUI] with gr.Blocks(
         title="AKO Hub 控制面板",
     ) as app:
         
         # 页眉：Logo + 标题
-        with gr.Row():
-            with gr.Column(scale=1, min_width=80):
+        # [DEPRECATED_GUI] with gr.Row():
+            # [DEPRECATED_GUI] with gr.Column(scale=1, min_width=80):
                 gr.Image(
                     value=r"D:\AKO_Hub\ako_logo.png",
                     show_label=False,
                     container=False,
                     height=60,
                 )
-            with gr.Column(scale=4):
-                gr.Markdown("# 阿格智造 AKO Hub 智能系统")
-        gr.Markdown('<p class="subtitle">统一调度平台 · 任务管理 · RAG对话 · 图像分析 · 工作流 · 商业报价 · 内容营销 · 同步监控</p>')
+            # [DEPRECATED_GUI] with gr.Column(scale=4):
+                # [DEPRECATED_GUI] gr.Markdown("# 阿格智造 AKO Hub 智能系统")
+        # [DEPRECATED_GUI] gr.Markdown('<p class="subtitle">统一调度平台 · 任务管理 · RAG对话 · 图像分析 · 工作流 · 商业报价 · 内容营销 · 同步监控</p>')
         
         # 创建标签页
-        with gr.Tabs():
+        # [DEPRECATED_GUI] with gr.Tabs():
             
             # ═══════════════════════════════════════════════════════
             # 标签页 1: 执行任务
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("🚀 执行任务", id="execute"):
-                gr.Markdown("### 提交 AI Agent 任务到 Master Graph 执行")
+            # [DEPRECATED_GUI] with gr.TabItem("🚀 执行任务", id="execute"):
+                # [DEPRECATED_GUI] gr.Markdown("### 提交 AI Agent 任务到 Master Graph 执行")
                 
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        intent_input = gr.Textbox(
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
+                        # [DEPRECATED_GUI] intent_input = gr.Textbox(
                             label="任务意图 *",
                             placeholder="例如：结构计算、荷载分析、构件设计...",
                             lines=3,
                             info="描述您希望 AI Agent 执行的任务"
                         )
-                        project_input = gr.Textbox(
+                        # [DEPRECATED_GUI] project_input = gr.Textbox(
                             label="项目标签 *",
                             placeholder="例如：ECA、project_01...",
                             info="关联的项目标识符"
                         )
-                        workflow_dropdown = gr.Dropdown(
+                        # [DEPRECATED_GUI] workflow_dropdown = gr.Dropdown(
                             label="工作流 ID（可选）",
                             choices=get_workflow_choices(),
                             value=None,
                             allow_custom_value=True,
                             info="从注册表选择或输入自定义工作流 ID"
                         )
-                        agent_dropdown = gr.Dropdown(
+                        # [DEPRECATED_GUI] agent_dropdown = gr.Dropdown(
                             label="Agent 名称（可选）",
                             choices=get_agent_choices(),
                             value=None,
@@ -523,10 +523,10 @@ def create_interface():
                             info="从注册表选择或输入自定义 Agent 名称"
                         )
                         
-                        submit_btn = gr.Button("🚀 提交任务", variant="primary", size="lg")
+                        # [DEPRECATED_GUI] submit_btn = gr.Button("🚀 提交任务", variant="primary", size="lg")
                     
-                    with gr.Column(scale=2):
-                        result_output = gr.Textbox(
+                    # [DEPRECATED_GUI] with gr.Column(scale=2):
+                        # [DEPRECATED_GUI] result_output = gr.Textbox(
                             label="执行结果",
                             lines=20,
                             interactive=False
@@ -556,12 +556,12 @@ def create_interface():
             # ═══════════════════════════════════════════════════════
             # 标签页 2: 同步校验
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("🔄 同步校验", id="sync"):
-                gr.Markdown("### 检查项目文件同步状态，确保双机数据一致性")
+            # [DEPRECATED_GUI] with gr.TabItem("🔄 同步校验", id="sync"):
+                # [DEPRECATED_GUI] gr.Markdown("### 检查项目文件同步状态，确保双机数据一致性")
                 
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        sync_project_input = gr.Textbox(
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
+                        # [DEPRECATED_GUI] sync_project_input = gr.Textbox(
                             label="项目标签",
                             placeholder="留空则校验最近 100 个文件",
                             info="指定要校验的项目"
@@ -571,10 +571,10 @@ def create_interface():
                             value=False,
                             info="勾选后显示每个文件的详细同步状态"
                         )
-                        sync_btn = gr.Button("🔍 开始校验", variant="primary", size="lg")
+                        # [DEPRECATED_GUI] sync_btn = gr.Button("🔍 开始校验", variant="primary", size="lg")
                     
-                    with gr.Column(scale=2):
-                        sync_output = gr.Textbox(
+                    # [DEPRECATED_GUI] with gr.Column(scale=2):
+                        # [DEPRECATED_GUI] sync_output = gr.Textbox(
                             label="校验结果",
                             lines=20,
                             interactive=False
@@ -589,13 +589,13 @@ def create_interface():
             # ═══════════════════════════════════════════════════════
             # 标签页 3: 系统状态
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("📊 系统状态", id="status"):
-                gr.Markdown("### 组件健康 + Hub 数据状态")
+            # [DEPRECATED_GUI] with gr.TabItem("📊 系统状态", id="status"):
+                # [DEPRECATED_GUI] gr.Markdown("### 组件健康 + Hub 数据状态")
                 
-                with gr.Row():
-                    refresh_btn = gr.Button("🔄 刷新状态", variant="primary", size="lg")
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] refresh_btn = gr.Button("🔄 刷新状态", variant="primary", size="lg")
                 
-                status_output = gr.Textbox(
+                # [DEPRECATED_GUI] status_output = gr.Textbox(
                     label="系统状态",
                     lines=35,
                     interactive=False
@@ -608,22 +608,22 @@ def create_interface():
             # ═══════════════════════════════════════════════════════
             # 标签页 4: 文件列表
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("📁 文件列表", id="files"):
-                gr.Markdown("### 浏览和管理注册的文件资源")
+            # [DEPRECATED_GUI] with gr.TabItem("📁 文件列表", id="files"):
+                # [DEPRECATED_GUI] gr.Markdown("### 浏览和管理注册的文件资源")
                 
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        file_project_input = gr.Textbox(
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
+                        # [DEPRECATED_GUI] file_project_input = gr.Textbox(
                             label="项目标签",
                             placeholder="留空显示全部",
                             info="按项目过滤"
                         )
-                        file_agent_input = gr.Textbox(
+                        # [DEPRECATED_GUI] file_agent_input = gr.Textbox(
                             label="Agent 名称",
                             placeholder="留空显示全部",
                             info="按 Agent 过滤"
                         )
-                        file_type_input = gr.Textbox(
+                        # [DEPRECATED_GUI] file_type_input = gr.Textbox(
                             label="文件类型",
                             placeholder="例如：pdf、docx、xlsx",
                             info="按文件扩展名过滤"
@@ -635,10 +635,10 @@ def create_interface():
                             step=10,
                             label="显示数量"
                         )
-                        fetch_btn = gr.Button("📥 获取列表", variant="primary", size="lg")
+                        # [DEPRECATED_GUI] fetch_btn = gr.Button("📥 获取列表", variant="primary", size="lg")
                     
-                    with gr.Column(scale=3):
-                        file_stats = gr.Markdown(label="统计信息")
+                    # [DEPRECATED_GUI] with gr.Column(scale=3):
+                        # [DEPRECATED_GUI] file_stats = gr.Markdown(label="统计信息")
                         file_table = gr.Dataframe(
                             headers=["ID", "文件名", "项目", "Agent", "类型", "大小(B)", "同步状态", "创建时间"],
                             datatype=["str", "str", "str", "str", "str", "number", "str", "str"],
@@ -656,12 +656,12 @@ def create_interface():
             # ═══════════════════════════════════════════════════════
             # 标签页 5: 管理 Agent
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("⚙️ 管理 Agent", id="manage"):
-                gr.Markdown("### 查看和管理已注册的 Agent")
+            # [DEPRECATED_GUI] with gr.TabItem("⚙️ 管理 Agent", id="manage"):
+                # [DEPRECATED_GUI] gr.Markdown("### 查看和管理已注册的 Agent")
                 
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### 当前已注册的 Agent")
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
+                        # [DEPRECATED_GUI] gr.Markdown("#### 当前已注册的 Agent")
                         agent_list_display = gr.Dataframe(
                             headers=["名称", "类型", "工作流 ID", "状态", "描述"],
                             datatype=["str", "str", "str", "str", "str"],
@@ -669,38 +669,38 @@ def create_interface():
                             wrap=True,
                             column_widths=["200px", "100px", "150px", "100px", "300px"]
                         )
-                        refresh_agents_btn = gr.Button("🔄 刷新列表", variant="secondary")
+                        # [DEPRECATED_GUI] refresh_agents_btn = gr.Button("🔄 刷新列表", variant="secondary")
                     
-                    with gr.Column(scale=1):
-                        gr.Markdown("#### 注册新 Agent")
-                        new_agent_name = gr.Textbox(
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
+                        # [DEPRECATED_GUI] gr.Markdown("#### 注册新 Agent")
+                        # [DEPRECATED_GUI] new_agent_name = gr.Textbox(
                             label="Agent 名称 *",
                             placeholder="例如：新的结构分析 Agent",
                             info="Agent 的显示名称"
                         )
-                        new_agent_workflow_id = gr.Textbox(
+                        # [DEPRECATED_GUI] new_agent_workflow_id = gr.Textbox(
                             label="工作流 ID *",
                             placeholder="例如：wf_new_agent",
                             info="唯一的工作流标识符"
                         )
-                        new_agent_module = gr.Textbox(
+                        # [DEPRECATED_GUI] new_agent_module = gr.Textbox(
                             label="Python 模块路径 *",
                             placeholder="例如：agents.new_agent",
                             info="Agent 代码所在的 Python 模块"
                         )
-                        new_agent_function = gr.Textbox(
+                        # [DEPRECATED_GUI] new_agent_function = gr.Textbox(
                             label="入口函数",
                             placeholder="例如：run",
                             value="run",
                             info="Agent 的入口函数名（LangGraph 子图留空）"
                         )
-                        new_agent_description = gr.Textbox(
+                        # [DEPRECATED_GUI] new_agent_description = gr.Textbox(
                             label="描述",
                             placeholder="简要描述 Agent 的功能",
                             lines=2,
                             info="Agent 的功能说明"
                         )
-                        new_agent_source_dir = gr.Textbox(
+                        # [DEPRECATED_GUI] new_agent_source_dir = gr.Textbox(
                             label="源码目录 *",
                             placeholder="例如：D:/AKO_business_agent",
                             info="Spoke 项目源码的绝对路径"
@@ -711,8 +711,8 @@ def create_interface():
                             value="importlib",
                             info="importlib=直接导入模块；subprocess=独立进程调用"
                         )
-                        register_agent_btn = gr.Button("➕ 注册 Agent", variant="primary")
-                        register_result = gr.Textbox(
+                        # [DEPRECATED_GUI] register_agent_btn = gr.Button("➕ 注册 Agent", variant="primary")
+                        # [DEPRECATED_GUI] register_result = gr.Textbox(
                             label="注册结果",
                             lines=3,
                             interactive=False
@@ -783,26 +783,26 @@ def create_interface():
             # ═══════════════════════════════════════════════════════
             # 标签页 6: RAG 知识库对话
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("💬 RAG 对话", id="rag_chat"):
-                gr.Markdown("### 基于知识库的专业问答（建筑规范、陶粒墙板知识）")
+            # [DEPRECATED_GUI] with gr.TabItem("💬 RAG 对话", id="rag_chat"):
+                # [DEPRECATED_GUI] gr.Markdown("### 基于知识库的专业问答（建筑规范、陶粒墙板知识）")
 
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        rag_question = gr.Textbox(
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
+                        # [DEPRECATED_GUI] rag_question = gr.Textbox(
                             label="你的问题",
                             placeholder="例如：陶粒墙板抗压强度的规范要求是什么？",
                             lines=3,
                         )
-                        rag_kb_id = gr.Dropdown(
+                        # [DEPRECATED_GUI] rag_kb_id = gr.Dropdown(
                             label="知识库",
                             choices=["all", "ako_taoli_general_arch", "ako_taoli_building_codes_arch"],
                             value="all",
                             info="选择知识库范围",
                         )
-                        rag_btn = gr.Button("🔍 提问", variant="primary", size="lg")
+                        # [DEPRECATED_GUI] rag_btn = gr.Button("🔍 提问", variant="primary", size="lg")
 
-                    with gr.Column(scale=2):
-                        rag_answer = gr.Textbox(
+                    # [DEPRECATED_GUI] with gr.Column(scale=2):
+                        # [DEPRECATED_GUI] rag_answer = gr.Textbox(
                             label="回答",
                             lines=20,
                             interactive=False,
@@ -827,25 +827,25 @@ def create_interface():
             # ═══════════════════════════════════════════════════════
             # 标签页 7: 图像分析
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("🖼️ 图像分析", id="image_analysis"):
-                gr.Markdown("### 上传建筑图像进行 AI 分析（材料、风格、缺陷识别）")
+            # [DEPRECATED_GUI] with gr.TabItem("🖼️ 图像分析", id="image_analysis"):
+                # [DEPRECATED_GUI] gr.Markdown("### 上传建筑图像进行 AI 分析（材料、风格、缺陷识别）")
 
-                with gr.Row():
-                    with gr.Column(scale=1):
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
                         img_upload = gr.Image(
                             label="上传图像",
                             type="numpy",
                             height=300,
                         )
-                        img_intent = gr.Dropdown(
+                        # [DEPRECATED_GUI] img_intent = gr.Dropdown(
                             label="分析意图",
                             choices=["图像分析", "缺陷识别", "材料识别", "风格分析", "施工现场验收"],
                             value="图像分析",
                         )
-                        img_btn = gr.Button("🔬 开始分析", variant="primary", size="lg")
+                        # [DEPRECATED_GUI] img_btn = gr.Button("🔬 开始分析", variant="primary", size="lg")
 
-                    with gr.Column(scale=2):
-                        img_result = gr.Textbox(
+                    # [DEPRECATED_GUI] with gr.Column(scale=2):
+                        # [DEPRECATED_GUI] img_result = gr.Textbox(
                             label="分析结果",
                             lines=20,
                             interactive=False,
@@ -860,12 +860,12 @@ def create_interface():
             # ═══════════════════════════════════════════════════════
             # 标签页 8: AKO 工作流
             # ═══════════════════════════════════════════════════════
-            with gr.TabItem("⚡ 工作流", id="workflow"):
-                gr.Markdown("### 陶粒墙板智能工作流（配比优化 → 商业计划 → 可行性分析）")
+            # [DEPRECATED_GUI] with gr.TabItem("⚡ 工作流", id="workflow"):
+                # [DEPRECATED_GUI] gr.Markdown("### 陶粒墙板智能工作流（配比优化 → 商业计划 → 可行性分析）")
 
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        wf_input = gr.Textbox(
+                # [DEPRECATED_GUI] with gr.Row():
+                    # [DEPRECATED_GUI] with gr.Column(scale=1):
+                        # [DEPRECATED_GUI] wf_input = gr.Textbox(
                             label="输入描述",
                             placeholder="例如：当前陶粒墙板配比：水泥 280kg/m³，陶粒 650kg/m³...\n目标性能：抗压强度 ≥ 5.0 MPa...",
                             lines=6,
@@ -874,10 +874,10 @@ def create_interface():
                             label="或上传文件（.docx / .pdf / .txt）",
                             file_types=[".docx", ".pdf", ".txt", ".md", ".pptx"],
                         )
-                        wf_btn = gr.Button("⚡ 执行工作流", variant="primary", size="lg")
+                        # [DEPRECATED_GUI] wf_btn = gr.Button("⚡ 执行工作流", variant="primary", size="lg")
 
-                    with gr.Column(scale=2):
-                        wf_result = gr.Textbox(
+                    # [DEPRECATED_GUI] with gr.Column(scale=2):
+                        # [DEPRECATED_GUI] wf_result = gr.Textbox(
                             label="执行结果",
                             lines=25,
                             interactive=False,
@@ -898,8 +898,8 @@ def create_interface():
                 )
 
         # 页脚
-        gr.Markdown("---")
-        gr.Markdown(
+        # [DEPRECATED_GUI] gr.Markdown("---")
+        # [DEPRECATED_GUI] gr.Markdown(
             '<div style="text-align: center; color: #94a3b8; font-size: 0.875rem;">'
             'AKO Hub v1.0 · AKO内部使用 · 基于 LangGraph 构建'
             '</div>'
@@ -926,7 +926,7 @@ if __name__ == "__main__":
     )
     
     app = create_interface()
-    app.launch(
+    # [DEPRECATED_GUI] app.launch(
         server_name="127.0.0.1",
         server_port=7860,
         share=False,  # 如需公共链接，请先下载 frpc 隧道客户端

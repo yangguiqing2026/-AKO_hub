@@ -5,7 +5,6 @@ AKO Hub — AKO_knowledge 适配器
 支持操作：
   - search: 混合检索
   - health: 健康检查
-  - server: 启动 FastAPI 服务
 """
 import sys
 import json
@@ -74,23 +73,6 @@ def run(
             return {
                 "output_files": [str(result_file)],
                 "summary": f"知识库检索完成: \"{query}\" → {doc_count} 条结果",
-                "error": None,
-            }
-
-        elif action == "server":
-            import uvicorn
-            host = kwargs.get("host", "127.0.0.1")
-            port = int(kwargs.get("port", 8000))
-            uvicorn.run(
-                "knowledge_service:app",
-                host=host,
-                port=port,
-                reload=False,
-                log_level="info",
-            )
-            return {
-                "output_files": [],
-                "summary": f"知识库服务已启动: http://{host}:{port}",
                 "error": None,
             }
 

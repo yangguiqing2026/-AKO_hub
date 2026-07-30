@@ -36,20 +36,20 @@ DEFAULT_PYTHON: str = sys.executable     # 当前 Python 解释器
 # 子进程调用约定: {python} {entry_script} < stdin.json > stdout.json
 # 完成后写 _DONE.json 到工作目录
 SPOKE_REGISTRY: Dict[str, Dict[str, str]] = {
-    "AKO_chat":              {"entry": "agents/chat_app.py",              "type": "fastapi"},
-    "AKO_quote_agent":       {"entry": "agents/quote_app.py",            "type": "fastapi"},
+    "AKO_chat":              {"entry": "agents/ako_chat_adapter.py",       "type": "script"},
+    "AKO_quote_agent":       {"entry": "agents/ako_quote_adapter.py",      "type": "script"},
     "AKO_layout_agent":      {"entry": "agents/layout_agent.py",         "type": "script"},
     "AKO_media_agent":       {"entry": "agents/media_agent.py",          "type": "script"},
     "AKO_drawing_inspector": {"entry": "agents/drawing_inspector.py",    "type": "script"},
     "AKO_image_analyzer":    {"entry": "agents/image_analyzer.py",       "type": "script"},
     "AKO_architect_agent":   {"entry": "agents/architect_agent.py",      "type": "script"},
-    "AKO_reports":           {"entry": "agents/reports_app.py",          "type": "fastapi"},
-    "AKO_form_extractor":    {"entry": "agents/form_extractor_app.py",   "type": "fastapi"},
+    "AKO_reports":           {"entry": "agents/ako_reports_adapter.py",   "type": "script"},
+    "AKO_form_extractor":    {"entry": "agents/ako_form_extractor_adapter.py", "type": "script"},
     "AKO_netwatch_agent":    {"entry": "agents/netwatch_agent.py",       "type": "script"},
-    "AKO_business_agent":    {"entry": "agents/business_app.py",         "type": "fastapi"},
-    "AKO_knowledge":         {"entry": "agents/knowledge_service.py",    "type": "fastapi"},
+    "AKO_business_agent":    {"entry": "agents/ako_business_adapter.py",  "type": "script"},
+    "AKO_knowledge":         {"entry": "agents/knowledge_service.py",    "type": "script"},
     "AKO_geo":               {"entry": "agents/geo_agent.py",           "type": "script"},
-    "AKO工作流":              {"entry": "agents/workflow_app.py",        "type": "fastapi"},
+    "AKO工作流":              {"entry": "agents/ako_workflow_adapter.py", "type": "script"},
 }
 
 
@@ -296,39 +296,6 @@ class TaskExecutor:
         for node in nodes:
             if failed_agent_id in node.dependencies and node.status == "pending":
                 node.status = "blocked"
-
-    # ── HTTP 模式预留 ────────────────────────────────────────────────
-    # 若 Spoke 以 FastAPI 常驻运行，可替换为 requests 调用
-    @staticmethod
-    def _call_spoke_http(agent_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """通过 HTTP 调用已运行的 Spoke（预留）。"""
-        import requests
-
-        # 端口映射（与 AKO Hub 配置一致）
-        port_map: Dict[str, int] = {
-            "AKO_chat": 7861,
-            "AKO_knowledge": 8000,
-            "AKO_reports": 5001,
-            "AKO_business_agent": 5002,
-            "AKO_quote_agent": 5000,
-            "AKO_form_extractor": 5003,
-            "AKO工作流": 5004,
-        }
-
-        port = port_map.get(agent_id)
-        if not port:
-            return {"status": "failed", "error": f"未知 HTTP 端口: {agent_id}"}
-
-        try:
-            resp = requests.post(
-                f"http://localhost:{port}/invoke",
-                json=payload,
-                timeout=SUBPROCESS_TIMEOUT,
-            )
-            resp.raise_for_status()
-            return {"status": "success", "data": resp.json()}
-        except Exception as exc:
-            return {"status": "failed", "error": str(exc)}
 
 
 # ── 自检 ───────────────────────────────────────────────────────────

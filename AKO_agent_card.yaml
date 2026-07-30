@@ -1,0 +1,31 @@
+agent_id: AKO_hub
+name: 总线调度 Agent
+version: 2.0.0
+author: AKO_studio
+created_date: '2026-07-30'
+status: active
+description: 总线调度中枢：Agent 注册、意图路由、工作流编排、健康巡检
+capabilities:
+- Agent 注册与发现
+- 意图路由（18 关键词 + 5 复合任务）
+- 工作流编排（LangGraph Master Graph）
+- 健康巡检（31 Spoke Agent 心跳监控）
+- 双模式调度（importlib 直调 + subprocess 子进程）
+dependencies:
+- python>=3.9
+- langgraph>=0.0.40
+- pyyaml>=6.0
+- fastapi>=0.100.0
+interfaces:
+  input: CLI / Web UI (Streamlit :7860) / API
+  output: 路由表 JSON / 任务状态 / 日志文件
+health_probe:
+  endpoint: /health
+  expected_response: ok
+registry:
+  registry_agent: AKO_registry_agent
+  registered: true
+tags:
+- infrastructure
+- agent
+- hub

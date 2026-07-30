@@ -510,7 +510,7 @@ class KnowledgeHub:
 
             # MaxSim: 对每个 query token，找 doc token 中最大余弦相似度，求和
             try:
-                import numpy as np
+                # [FINAL_CLEAN] import numpy as np
                 doc_vecs = np.array(colbert_tokens, dtype=np.float32)
                 query_vecs = np.array(query_embs, dtype=np.float32)
 
@@ -542,7 +542,7 @@ class KnowledgeHub:
         2. 对每条文档：final = Σ w_i / (k + rank_i)   (k=60)
         3. 归一化到 [0, 1]
         """
-        import numpy as np
+        # [FINAL_CLEAN] import numpy as np
 
         def scores_to_ranks(scores: List[float]) -> List[int]:
             """分数越高排名越靠前（rank 从 1 开始）。"""

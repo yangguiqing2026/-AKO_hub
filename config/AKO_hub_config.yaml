@@ -1,0 +1,42 @@
+﻿---
+# AKO_hub 运行配置
+# 作者：AKO_studio
+# 日期：2026-07-31
+# 版本：v2.0.0
+
+agent:
+  id: "AKO_hub"
+  name: "总线调度 Agent"
+  log_level: "INFO"
+
+registry:
+  agent_id: "AKO_registry_agent"
+  endpoint: "http://localhost:PORT"
+  sync_interval: 60
+  timeout: 10
+
+routing:
+  strategy: "round_robin"
+  timeout: 30
+  retry_count: 3
+  retry_backoff: 2
+
+health_check:
+  interval: 30
+  timeout: 5
+  failure_threshold: 3
+
+message_queue:
+  type: "memory"
+  max_size: 10000
+
+logging:
+  level: "INFO"
+  path: "logs/hub.log"
+  max_size: "10MB"
+  backup_count: 5
+  format: "%%(asctime)s [%%(levelname)s] %%(name)s: %%(message)s"
+
+storage:
+  routing_table: "data/routing_table.json"
+  agent_state: "data/agent_state.json"

@@ -1,7 +1,7 @@
 """
-AKO工作流 FastAPI 入口 — task_executor 调用。
-stdin JSON → ako_workflow_adapter.run() → stdout JSON
-也可独立启动 FastAPI 服务: python workflow_app.py --serve
+AKO_form_extractor FastAPI 入口 — task_executor 调用。
+# [DEPRECATED_GUI] stdin JSON → ako_form_extractor_adapter.run() → stdout JSON
+也可独立启动 FastAPI 服务: python form_extractor_app.py --serve
 """
 import sys
 import json
@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from agents.ako_workflow_adapter import run as adapter_run
+from agents.ako_form_extractor_adapter import run as adapter_run
 
 
 def handle_stdin():
@@ -32,13 +32,8 @@ def handle_stdin():
 
     result = adapter_run(
         intent=intent,
-        project_tag=inputs.get("project_tag", "taoli"),
-        user_input=inputs.get("user_input", intent),
-        input_file=inputs.get("input_file", ""),
+        action=inputs.get("action", "extract"),
         _hub_output_dir=inputs.get("_hub_output_dir", ""),
-        _hub_db_path=inputs.get("_hub_db_path", ""),
-        _hub_chroma_root=inputs.get("_hub_chroma_root", ""),
-        _hub_file_root=inputs.get("_hub_file_root", ""),
     )
     print(json.dumps(result, ensure_ascii=False))
 
@@ -48,28 +43,23 @@ def serve():
     from fastapi import FastAPI
     import uvicorn
 
-    app = FastAPI(title="AKO Workflow")
+    # [DEPRECATED_GUI] app = FastAPI(title="AKO Form Extractor")
 
-    @app.get("/health")
+    # [DEPRECATED_GUI] @app.get("/health")
     def health():
-        return {"status": "ok", "component": "workflow", "checks": {}}
+        return {"status": "ok", "component": "form_extractor"}
 
-    @app.post("/invoke")
+    # [DEPRECATED_GUI] @app.post("/invoke")
     async def invoke(payload: dict):
         intent = payload.get("intent", "")
         inputs = payload.get("inputs", {})
         return adapter_run(
             intent=intent,
-            project_tag=inputs.get("project_tag", "taoli"),
-            user_input=inputs.get("user_input", intent),
-            input_file=inputs.get("input_file", ""),
+            action=inputs.get("action", "extract"),
             _hub_output_dir=inputs.get("_hub_output_dir", ""),
-            _hub_db_path=inputs.get("_hub_db_path", ""),
-            _hub_chroma_root=inputs.get("_hub_chroma_root", ""),
-            _hub_file_root=inputs.get("_hub_file_root", ""),
         )
 
-    uvicorn.run(app, host="127.0.0.1", port=5004)
+    # [DEPRECATED_GUI] uvicorn.run(app, host="127.0.0.1", port=5003)
 
 
 if __name__ == "__main__":

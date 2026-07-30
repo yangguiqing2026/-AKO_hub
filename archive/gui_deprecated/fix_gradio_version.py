@@ -73,7 +73,7 @@ if needs_upgrade:
         cmd = "pip install \"gradio>=4.20.0,<5.0.0\" --upgrade"
     
     print()
-    result = subprocess.run(cmd, shell=True)
+    # [DEPRECATED_GUI] result = subprocess.run(cmd, shell=True)
     
     if result.returncode == 0:
         print("\n✓ 安装成功！")
@@ -100,7 +100,7 @@ try:
     try:
         import gradio as gr
         # 尝试创建不带 show_copy_button 的 Textbox（兼容所有版本）
-        test_box = gr.Textbox(label="测试", interactive=False)
+        # [DEPRECATED_GUI] test_box = gr.Textbox(label="测试", interactive=False)
         print("  ✓ Textbox 创建成功")
     except Exception as e:
         print(f"  ⚠ Textbox 测试警告: {e}")
@@ -125,7 +125,7 @@ try:
         print("\n正在启动...\n")
         from web_ui import create_interface
         app = create_interface()
-        app.launch(
+        # [DEPRECATED_GUI] app.launch(
             server_name="127.0.0.1",
             server_port=7860,
             share=False,

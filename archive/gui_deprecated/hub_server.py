@@ -23,8 +23,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+# [DEPRECATED_GUI] from fastapi import FastAPI, HTTPException
+# [DEPRECATED_GUI] from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from core.knowledge_hub import KnowledgeHub
@@ -32,7 +32,7 @@ from core.hub_db import HubDB
 
 # ── FastAPI 应用 ──────────────────────────────────────────────────
 
-app = FastAPI(
+# [DEPRECATED_GUI] app = FastAPI(
     title="AKO Hub Knowledge API",
     description="知识库统一检索 REST API",
     version="1.0.0",
@@ -107,18 +107,18 @@ def _get_hub() -> KnowledgeHub:
 
 # ── 路由 ──────────────────────────────────────────────────────────
 
-@app.get("/api/cache/stats")
+# [DEPRECATED_GUI] @app.get("/api/cache/stats")
 async def cache_stats():
     """LRU 缓存统计"""
     return _get_hub().cache_stats
 
-@app.post("/api/cache/clear")
+# [DEPRECATED_GUI] @app.post("/api/cache/clear")
 async def cache_clear():
     """清空所有缓存"""
     _get_hub().clear_cache()
     return {"status": "ok", "message": "cache cleared"}
 
-@app.get("/api/health")
+# [DEPRECATED_GUI] @app.get("/api/health")
 async def health():
     """健康检查"""
     paths = _resolve_paths()
@@ -130,7 +130,7 @@ async def health():
     }
 
 
-@app.get("/health")
+# [DEPRECATED_GUI] @app.get("/health")
 async def health_v2():
     """Health check endpoint — returns component + status + checks"""
     checks = {}
@@ -160,7 +160,7 @@ async def health_v2():
         "cache": _get_hub().cache_stats,
     }
 
-@app.get("/api/knowledge/list", response_model=list[KnowledgeBaseInfo])
+# [DEPRECATED_GUI] @app.get("/api/knowledge/list", response_model=list[KnowledgeBaseInfo])
 async def list_knowledge_bases():
     """列出所有已注册的知识库"""
     paths = _resolve_paths()
@@ -183,7 +183,7 @@ async def list_knowledge_bases():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查询知识库列表失败: {e}")
 
-@app.post("/api/knowledge/query")
+# [DEPRECATED_GUI] @app.post("/api/knowledge/query")
 async def query_knowledge(req: QueryRequest):
     """
     检索知识库
@@ -247,4 +247,4 @@ if __name__ == "__main__":
 
     print(f"🚀 AKO Hub Knowledge API 启动: http://{args.host}:{args.port}")
     print(f"   API 文档: http://{args.host}:{args.port}/docs")
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    # [DEPRECATED_GUI] uvicorn.run(app, host=args.host, port=args.port, log_level="info")

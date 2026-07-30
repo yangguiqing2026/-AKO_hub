@@ -16,7 +16,7 @@ def run_command(cmd, description):
     """运行命令并显示结果"""
     print(f"[执行] {description}...")
     try:
-        result = subprocess.run(
+        # [DEPRECATED_GUI] result = subprocess.run(
             cmd, 
             shell=True, 
             capture_output=True, 
@@ -37,7 +37,7 @@ def run_command(cmd, description):
 
 # 1. 检查 Python
 print("[1/6] 检查 Python 环境...")
-result = subprocess.run(["python", "--version"], capture_output=True, text=True)
+# [DEPRECATED_GUI] result = subprocess.run(["python", "--version"], capture_output=True, text=True)
 if result.returncode == 0:
     print(f"[✓] Python 版本: {result.stdout.strip()}")
 else:
@@ -129,7 +129,7 @@ if choice.upper() == 'Y':
     try:
         import web_ui
         app = web_ui.create_interface()
-        app.launch(
+        # [DEPRECATED_GUI] app.launch(
             server_name="127.0.0.1",
             server_port=7860,
             share=False,

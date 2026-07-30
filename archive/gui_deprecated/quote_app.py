@@ -1,7 +1,7 @@
 """
-AKO_chat FastAPI 入口 — task_executor 调用。
-stdin JSON → ako_chat_adapter.run() → stdout JSON
-也可独立启动 FastAPI 服务: python chat_app.py --serve
+AKO_quote FastAPI 入口 — task_executor 调用。
+# [DEPRECATED_GUI] stdin JSON → ako_quote_adapter.run() → stdout JSON
+也可独立启动 FastAPI 服务: python quote_app.py --serve
 """
 import sys
 import json
@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from agents.ako_chat_adapter import run as adapter_run
+from agents.ako_quote_adapter import run as adapter_run
 
 
 def handle_stdin():
@@ -33,9 +33,8 @@ def handle_stdin():
     result = adapter_run(
         intent=intent,
         project_tag=inputs.get("project_tag", "taoli"),
-        kb_id=inputs.get("kb_id", "all"),
-        question=inputs.get("question", intent),
         _hub_output_dir=inputs.get("_hub_output_dir", ""),
+        **{k: v for k, v in inputs.items() if k not in ("_hub_output_dir", "_hub_db_path", "_hub_chroma_root", "_hub_file_root")},
     )
     print(json.dumps(result, ensure_ascii=False))
 
@@ -45,25 +44,24 @@ def serve():
     from fastapi import FastAPI
     import uvicorn
 
-    app = FastAPI(title="AKO Chat")
+    # [DEPRECATED_GUI] app = FastAPI(title="AKO Quote")
 
-    @app.get("/health")
+    # [DEPRECATED_GUI] @app.get("/health")
     def health():
-        return {"status": "ok", "component": "chat", "checks": {}}
+        return {"status": "ok", "component": "quote", "checks": {}}
 
-    @app.post("/invoke")
+    # [DEPRECATED_GUI] @app.post("/invoke")
     async def invoke(payload: dict):
         intent = payload.get("intent", "")
         inputs = payload.get("inputs", {})
         return adapter_run(
             intent=intent,
             project_tag=inputs.get("project_tag", "taoli"),
-            kb_id=inputs.get("kb_id", "all"),
-            question=inputs.get("question", intent),
             _hub_output_dir=inputs.get("_hub_output_dir", ""),
+            **{k: v for k, v in inputs.items() if k not in ("_hub_output_dir", "_hub_db_path", "_hub_chroma_root", "_hub_file_root")},
         )
 
-    uvicorn.run(app, host="127.0.0.1", port=7861)
+    # [DEPRECATED_GUI] uvicorn.run(app, host="127.0.0.1", port=5000)
 
 
 if __name__ == "__main__":
