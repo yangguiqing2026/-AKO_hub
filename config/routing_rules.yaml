@@ -107,6 +107,12 @@ keyword_routes:
 - keyword: 知识
   agent_id: AKO_knowledge
   confidence: 0.8
+- keyword: 写作
+  agent_id: AKO_writer_agent
+  confidence: 0.85
+- keyword: 文章
+  agent_id: AKO_writer_agent
+  confidence: 0.85
 - keyword: 渲染
   agent_id: AKO_architect_agent
   confidence: 0.9

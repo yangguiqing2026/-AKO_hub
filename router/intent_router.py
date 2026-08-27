@@ -70,6 +70,8 @@ _FALLBACK_ROUTING: Dict[str, Dict[str, Any]] = {
     "聊天":      {"agent_id": "AKO_chat",            "confidence": 0.85},
     "问答":      {"agent_id": "AKO_chat",            "confidence": 0.80},
     "知识":      {"agent_id": "AKO_knowledge",       "confidence": 0.80},
+    "写作":      {"agent_id": "AKO_writer_agent",     "confidence": 0.85},
+    "文章":      {"agent_id": "AKO_writer_agent",     "confidence": 0.85},
     "检索":      {"agent_id": "AKO_knowledge",       "confidence": 0.85},
 }
 

@@ -263,6 +263,21 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "source_dir": "D:/AKO/AKO_law_agent",
         "invoke_mode": "importlib",
     },
+    # ── AKO_writer_agent（技术写作） ─────────────────────────────
+    {
+        "workflow_id": "AKO_writer_agent",
+        "name": "AKO_writer_agent",
+        "spoke_type": "agent",
+        "entry_module": "agents.ako_writer_adapter",
+        "entry_function": "run",
+        "required_kb_ids": ["ako_taoli_general_arch"],
+        "output_dir": "writer_output",
+        "description": "技术写作：N0 选题 → N1 检索 → N2 大纲（人工确认闭环）",
+        "status": "registered",
+        "source_dir": "D:/AKO/AKO_writer_agent",
+        "invoke_mode": "importlib",
+    },
+
 ]
 
 

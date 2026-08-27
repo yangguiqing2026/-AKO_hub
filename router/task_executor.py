@@ -49,6 +49,7 @@ SPOKE_REGISTRY: Dict[str, Dict[str, str]] = {
     "AKO_business_agent":       {"entry": "agents/ako_business_adapter.py",   "type": "script"},
     "AKO_knowledge":            {"entry": "agents/ako_knowledge_adapter.py",  "type": "script"},
     "AKO_law_agent":            {"entry": "agents/ako_law_adapter.py",        "type": "script"},
+    "AKO_writer_agent":         {"entry": "agents/ako_writer_adapter.py",     "type": "script"},
     "AKO_geo":                  {"entry": "agents/ako_geo_adapter.py",        "type": "script"},
     "AKO工作流":                 {"entry": "agents/ako_workflow_adapter.py",  "type": "script"},
 }

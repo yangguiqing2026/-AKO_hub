@@ -110,6 +110,10 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
         "domain": DOMAIN_CONTENT,
         "function": FUNCTION_PRODUCER,
     },
+    "AKO_writer_agent": {
+        "domain": DOMAIN_CONTENT,
+        "function": FUNCTION_PRODUCER,
+    },
     # ── 商业域 ────────────────────────────────────────────────
     "AKO_business_agent": {
         "domain": DOMAIN_COMMERCE,

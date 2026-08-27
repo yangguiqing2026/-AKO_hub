@@ -14,6 +14,12 @@
 # ============================================================
 
 capabilities:
+  - workflow_id: AKO_writer_agent
+    display: "✍️ 技术写作"
+    display_agent: writer_agent
+    category: content
+    sla_seconds: 240
+    description: "技术写作：选题→检索→大纲（人工确认闭环）"
   - display: "🎨 3D渲染"
     display_agent: render_agent
     workflow_id: AKO_architect_agent
