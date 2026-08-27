@@ -1,28 +1,31 @@
-# ============================================================
-# employee_access.yaml — AKO_agent_工作台 员工访问控制表
-# ============================================================
-# 职责：定义员工姓名与 6 位数字指纹的映射，供登录鉴权使用。
-# 前端 POST /api/auth/login 提交 fingerprint，后端在此表命中后放行。
-# ============================================================
-
 employees:
-  - name: 周明静
-    fingerprint: "129411"
-  - name: 罗泽广
-    fingerprint: "956432"
-  - name: 姚思琪
-    fingerprint: "579554"
-  - name: 王卢婷
-    fingerprint: "214905"
-  - name: 胡其克
-    fingerprint: "357276"
-  - name: 赵泽旭
-    fingerprint: "206046"
-  - name: 周旋
-    fingerprint: "333499"
-  - name: 姚兴华
-    fingerprint: "108395"
-  - name: 刘廷凡
-    fingerprint: "396894"
-  - name: 林智杰
-    fingerprint: "163288"
+- name: 周明静
+  salt: 42464e
+  fingerprint_hash: d77099be5624231974f74c284c36a7ba7a684635f4b9c2194e1082775fa62c6f
+- name: 罗泽广
+  salt: 26a988
+  fingerprint_hash: 14cd62b05f55e4a1d6a1eeb9813ad3df889150adf10fc5f3515779a10753d4cc
+- name: 姚思琪
+  salt: ecb3d2
+  fingerprint_hash: 8a0d850ffb2d043a29eb4b918fd613b49aa9fcb31a2e3d034878703583617828
+- name: 王卢婷
+  salt: 4111e9
+  fingerprint_hash: bcd6650dfea5fbf4f1a718d36dca687a03aed3956dff687d36c878955e9f84ba
+- name: 胡其克
+  salt: bb5fc9
+  fingerprint_hash: 5fea7ddf383aca804029be1dcd708430fc4ace256d53669f843adb995cb17da9
+- name: 赵泽旭
+  salt: 3af2ac
+  fingerprint_hash: 8700c245dfaf26f0bbc2a3112e06724d5391d666a4333087617dd676065b3af1
+- name: 周旋
+  salt: b17fa4
+  fingerprint_hash: eb751fbc9080c0ecbfc64f1280cbf0d9ad73a9812146c08460b6812a5b68305f
+- name: 姚兴华
+  salt: d5d4c8
+  fingerprint_hash: 65603832633d11240e181cf91f6dc9acb0286acc1fee862adccbf0eb5b9417b5
+- name: 刘廷凡
+  salt: 9e4e4d
+  fingerprint_hash: b54d45922573f5d4d9250398890a7ff27ff0d5780e800076410f444737100486
+- name: 林智杰
+  salt: a7dece
+  fingerprint_hash: 17d3b2e08c869ecb108e3ea39083d24267914c26db6b5cdaa4dfc2fafcb81c11

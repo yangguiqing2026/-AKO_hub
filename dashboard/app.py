@@ -25,8 +25,9 @@ import os
 import sqlite3
 import sys
 import asyncio
+import time
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import uuid
@@ -530,15 +531,64 @@ def _load_employee_access() -> List[Dict[str, str]]:
 async def auth_login(payload: Dict[str, Any]):
     """
     员工指纹登录校验（role=operator）。
-    前端提交 6 位数字指纹，命中员工名单则返回姓名，否则拒绝。
+
+    认证链路（2026-08-27 全面切换身份认证层，白皮书 §13）：
+    1. 优先经 AKO_identity_service /verify 逐人校验（身份注册册为唯一法源）
+    2. 未命中时回退本地盐值+哈希员工表（无明文）
     """
     fp = str(payload.get("fingerprint", "") or "").strip()
     if not fp.isdigit() or len(fp) != 6:
         return {"status": "fail", "message": "请输入 6 位数字指纹"}
+
+    human = await _verify_human_via_identity_service(fp)
+    if human:
+        return {"status": "ok", "name": human.get("name", ""), "role": "operator",
+                "human_id": human.get("human_id", ""), "via": "identity_service"}
+
+    import hashlib
     for emp in _load_employee_access():
-        if str(emp.get("fingerprint", "")).strip() == fp:
-            return {"status": "ok", "name": emp.get("name", ""), "role": "operator"}
+        salt = str(emp.get("salt", ""))
+        expect = str(emp.get("fingerprint_hash", ""))
+        if salt and expect and hashlib.sha256((salt + fp).encode()).hexdigest() == expect:
+            return {"status": "ok", "name": emp.get("name", ""), "role": "operator", "via": "local_hash"}
     return {"status": "fail", "message": "指纹不匹配，无访问权限"}
+
+
+async def _verify_human_via_identity_service(fp: str) -> Optional[Dict[str, str]]:
+    """经身份认证层逐人校验指纹（人类身份注册册为唯一法源）。
+
+    从本地降级副本读取 human_id 列表，逐个 POST /api/v1/identity/verify。
+    命中返回 {human_id, name, role}，否则 None。
+    """
+    import httpx
+    reg = Path(r"D:\AKO\AKO_identity_service\config\human_identities.yaml")
+    if not reg.exists():
+        return None
+    try:
+        import yaml
+        humans = (yaml.safe_load(reg.read_text(encoding="utf-8-sig")) or {}).get("human_identities", []) or []
+    except Exception:
+        return None
+    for h in humans:
+        if h.get("status") != "active":
+            continue
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.post("http://127.0.0.1:5025/api/v1/identity/verify", json={
+                    "actor_type": "human",
+                    "actor_id": h.get("human_id", ""),
+                    "operation": "authorize_wo",
+                    "fingerprint": fp,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "nonce": f"dash-{int(time.time())}-{h.get('human_id', 'x')[-4:]}",
+                })
+                data = resp.json()
+        except Exception:
+            continue
+        if data.get("verified") is True:
+            return {"human_id": h.get("human_id", ""), "name": h.get("name", ""),
+                    "role": h.get("role", "")}
+    return None
 
 
 def _load_governor_access() -> List[Dict[str, str]]:
@@ -571,15 +621,24 @@ def _load_agent_names() -> Dict[str, str]:
 async def governor_login(payload: Dict[str, Any]):
     """
     老板指纹登录校验（role=governor）。
-    仅命中老板名单（杨贵清/周明静）才放行。
+
+    认证链路（2026-08-27 全面切换身份认证层）：
+    1. AKO_identity_service /verify 逐人校验（身份注册册唯一法源）
+    2. 命中者须在 governor allowlist（human_id 白名单，无凭证存储）
     """
     fp = str(payload.get("fingerprint", "") or "").strip()
     if not fp.isdigit() or len(fp) != 6:
         return {"status": "fail", "message": "请输入 6 位数字指纹"}
+
+    human = await _verify_human_via_identity_service(fp)
+    if not human:
+        return {"status": "fail", "message": "指纹不匹配，无访问权限"}
+
     for g in _load_governor_access():
-        if str(g.get("fingerprint", "")).strip() == fp:
-            return {"status": "ok", "name": g.get("name", ""), "role": "governor"}
-    return {"status": "fail", "message": "指纹不匹配，无访问权限"}
+        if g.get("human_id") == human.get("human_id"):
+            return {"status": "ok", "name": g.get("name") or human.get("name", ""),
+                    "role": "governor", "human_id": human.get("human_id")}
+    return {"status": "fail", "message": f"{human.get('name', '该人员')} 已在身份册登记但无治理指挥室权限"}
 
 
 _INTENT_ROUTER = None
@@ -1178,6 +1237,29 @@ async def startup_event():
     _ensure_state_file()
     _init_heartbeat_db()
     asyncio.create_task(watch_and_broadcast())
+    asyncio.create_task(_hub_self_heartbeat_loop())
+
+
+async def _hub_self_heartbeat_loop() -> None:
+    """hub 自心跳（治理概览中 AKO_hub 自身在线状态的诚实来源）。
+
+    看板运行于 hub 进程内，hub 之前无人替它上报心跳 → 概览恒 offline。
+    每 30s POST :5000/heartbeat（与各 spoke 相同通道）。
+    """
+    import httpx
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                await client.post("http://127.0.0.1:5000/heartbeat", json={
+                    "agent_id": "AKO_hub",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "status": "alive",
+                    "cpu_percent": 0.0,
+                    "memory_percent": 0.0,
+                })
+        except Exception:
+            pass
+        await asyncio.sleep(30)
 
 
 if __name__ == "__main__":
