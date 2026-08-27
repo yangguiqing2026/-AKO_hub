@@ -1,0 +1,33 @@
+# ============================================================
+# agent_edges.yaml — Agent 实际连接关系（老板看板拓扑连线数据源）
+# ============================================================
+# 依据：2026-08-27 全仓依赖盘点（D:\AKO 各 agent 代码级引用）
+# type: data(数据读写) | invoke(调用/调度) | heartbeat(心跳，由运行态自动叠加，不在此配置)
+# 仅收录双方均已合法注册的实体间连接；动态心跳边由后端合并。
+# ============================================================
+
+edges:
+  # ── 知识底座双写与消费 ──
+  - {from: AKO_knowledge_agent,  to: AKO_hub_agent,             type: data}
+  - {from: AKO_kb_agent,         to: AKO_knowledge_agent,       type: data}
+  - {from: AKO_writer_agent,     to: AKO_knowledge_agent,       type: data}
+  - {from: AKO_writer_agent,     to: AKO_hub_agent,             type: data}
+  - {from: AKO_law_agent,        to: AKO_knowledge_agent,       type: data}
+  - {from: AKO_web_consult_agent,to: AKO_knowledge_agent,       type: data}
+  - {from: AKO_drawing_inspector_agent, to: AKO_knowledge_agent, type: data}
+  - {from: AKO_image_analyzer_agent,    to: AKO_knowledge_agent, type: data}
+  # ── 业务链 ──
+  - {from: AKO_quote_agent,      to: AKO_business_agent,        type: data}
+  - {from: AKO_pipeline_agent,   to: AKO_qc_agent,              type: invoke}
+  - {from: AKO_pipeline_agent,   to: AKO_pack_agent,            type: invoke}
+  - {from: AKO_architect_agent,  to: AKO_image_analyzer_agent,  type: invoke}
+  - {from: AKO_drawing_inspector_agent, to: AKO_image_analyzer_agent, type: data}
+  - {from: AKO_media_agent,      to: AKO_hub_agent,             type: invoke}
+  - {from: AKO_audit_agent,      to: AKO_hub_agent,             type: invoke}
+  # ── 治理链 ──
+  - {from: AKO_guardian_agent,   to: AKO_law_agent,             type: invoke}
+  - {from: AKO_cluster_guardian_agent, to: AKO_clinic_agent,    type: data}
+  - {from: AKO_cluster_guardian_agent, to: AKO_registry_agent,  type: data}
+  - {from: AKO_clinic_agent,     to: AKO_cluster_guardian_agent, type: data}
+  - {from: AKO_monitor_agent,    to: AKO_hub_agent,             type: invoke}
+  - {from: AKO_identity_service_agent, to: AKO_hub_agent,       type: invoke}

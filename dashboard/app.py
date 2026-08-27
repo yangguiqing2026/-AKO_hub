@@ -719,6 +719,136 @@ async def governor():
     return "<h1>AKO 治理指挥室</h1><p>governor.html 尚未构建。</p>"
 
 
+# ── 治理拓扑（三层同心圆 + 实际连接） ─────────────────────────────
+
+# 分层规则（域→层）：基座域→知识层，运维域→运维层，其余→工具层；hub 为圆心不入环
+_DOMAIN_TO_LAYER = {"基座域": "知识层", "运维域": "运维层"}
+_LAYER_COLORS = {"知识层": "#B99B5F", "运维层": "#A08C64", "工具层": "#7A9E7E"}
+
+
+def _registry_agents() -> List[Dict[str, Any]]:
+    """从 AKO_registry_agent 拉取全部已登记实体的完整 manifest（本地降级：空列表）。
+
+    /agents 仅返回摘要（无 domain/quality_tier），故逐实体 GET /agents/{id}
+    取完整 manifest（registry 内存缓存，本地毫秒级）。
+    """
+    import httpx
+    try:
+        with httpx.Client(timeout=6) as client:
+            data = client.get("http://127.0.0.1:5024/ako/api/v1/registry/agents").json()
+            agents = data.get("agents", data) if isinstance(data, dict) else data
+            if isinstance(agents, dict):
+                ids = list(agents.keys())
+            else:
+                ids = [a.get("agent_id", "") for a in agents if isinstance(a, dict)]
+            full = []
+            for aid in ids:
+                if not aid:
+                    continue
+                try:
+                    m = client.get(f"http://127.0.0.1:5024/ako/api/v1/registry/agents/{aid}").json()
+                    manifest = m.get("manifest", m) if isinstance(m, dict) else m
+                    if isinstance(manifest, dict) and manifest.get("agent_id"):
+                        full.append(manifest)
+                except Exception:
+                    continue
+            return full
+    except Exception:
+        return []
+
+
+def _agent_layer(agent_id: str, domain: str) -> str:
+    if agent_id in ("AKO_hub_agent", "AKO_hub"):
+        return "圆心"
+    return _DOMAIN_TO_LAYER.get(domain, "工具层")
+
+
+def _topology_edges() -> List[Dict[str, str]]:
+    p = AKO_HUB_ROOT / "config" / "agent_edges.yaml"
+    if not p.exists():
+        return []
+    try:
+        import yaml
+        cfg = yaml.safe_load(p.read_text(encoding="utf-8-sig")) or {}
+        return [{"from": e["from"], "to": e["to"], "type": e.get("type", "data")}
+                for e in (cfg.get("edges", []) or [])]
+    except Exception:
+        return []
+
+
+@app.get("/api/governance/topology")
+async def governance_topology():
+    """
+    老板看板拓扑数据源：
+    - rings: 三层同心圆（知识层/运维层/工具层），hub 为圆心
+    - 每实体含 online/lifecycle_state/quality_tier/domain/layer/color
+    - edges: 实际连接 = 心跳边（在线实体→hub）+ agent_edges.yaml 静态边（仅双方已注册）
+    """
+    registry = _registry_agents()
+    hb = _heartbeat_status_map()
+    names = _load_agent_names()
+
+    by_id: Dict[str, Dict[str, Any]] = {}
+    for m in registry:
+        aid = m.get("agent_id", "")
+        if not aid:
+            continue
+        # 统一 hub 双名（注册键 AKO_hub_agent ↔ 心跳键 AKO_hub）
+        if aid == "AKO_hub_agent":
+            hb_status = hb.get("AKO_hub") or hb.get(aid) or {}
+        else:
+            hb_status = hb.get(aid) or {}
+        layer = _agent_layer(aid, m.get("domain", ""))
+        by_id[aid] = {
+            "agent_id": aid,
+            "name_zh": names.get(aid) or names.get(aid.replace("_agent", "")) or m.get("human_readable_name", aid),
+            "domain": m.get("domain", ""),
+            "layer": layer,
+            "color": _LAYER_COLORS.get(layer, "#A08C64"),
+            "lifecycle_state": m.get("lifecycle_state", "staging"),
+            "quality_tier": m.get("quality_tier", "C"),
+            "deployed_env": m.get("deployed_env", "staging"),
+            "status": m.get("status", "standby"),
+            "online": bool(hb_status.get("online")),
+            "last_heartbeat": hb_status.get("last_heartbeat"),
+            "cpu_percent": hb_status.get("cpu_percent"),
+        }
+
+    rings: Dict[str, List[Dict[str, Any]]] = {"知识层": [], "运维层": [], "工具层": []}
+    hub = None
+    for a in by_id.values():
+        if a["layer"] == "圆心":
+            hub = a
+        else:
+            rings.setdefault(a["layer"], []).append(a)
+
+    # 心跳边：所有在线实体 → hub
+    edges: List[Dict[str, Any]] = []
+    seen: set = set()
+    for a in by_id.values():
+        if a["online"] and a["layer"] != "圆心":
+            edges.append({"from": a["agent_id"], "to": "AKO_hub_agent",
+                          "type": "heartbeat", "online": True})
+            seen.add((a["agent_id"], "AKO_hub_agent"))
+    # 静态边（双方已注册才画）
+    for e in _topology_edges():
+        f, t = e["from"], e["to"]
+        if f in by_id and t in by_id and (f, t) not in seen:
+            edges.append({"from": f, "to": t, "type": e["type"],
+                          "online": by_id[f]["online"] and by_id[t]["online"]})
+            seen.add((f, t))
+
+    return {
+        "hub": hub,
+        "rings": rings,
+        "layer_colors": _LAYER_COLORS,
+        "edges": edges,
+        "counts": {k: len(v) for k, v in rings.items()},
+        "total": len(by_id),
+        "online_total": sum(1 for a in by_id.values() if a["online"]),
+    }
+
+
 @app.get("/api/capabilities")
 async def capabilities():
     """

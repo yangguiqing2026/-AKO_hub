@@ -180,6 +180,17 @@ body {
   background: var(--near-black);
 }
 
+
+.agent-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; margin-top: 10px; max-height: 300px; overflow-y: auto; }
+.agent-card { background: #2D2824; border-radius: 4px; padding: 8px 10px; }
+.agent-card-title { color: var(--cream-gold); font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.agent-card-title .agent-card-tier { margin-left: auto; font-size: 10px; color: var(--molten-gold); border: 1px solid color-mix(in srgb, var(--molten-gold) 50%, transparent); border-radius: 3px; padding: 0 4px; }
+.agent-card-meta { color: var(--amber-gold); font-size: 10px; margin-top: 4px; opacity: .85; }
+.card-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.card-dot.online { background: var(--soft-green); box-shadow: 0 0 5px var(--soft-green); }
+.card-dot.offline { background: #808080; }
+#topology-canvas { display: block; }
+
 /* 拓扑图 */
 .topology-panel {
   flex: 1.2;
@@ -571,16 +582,30 @@ body {
   <!-- 中区：全局态势 -->
   <div class="center-gov">
 
+    <!-- 已注册 Agent 卡片（三层分类） -->
+    <div class="topology-panel">
+      <div class="topology-title">已注册 Agent 卡片（35 实体 · 三色分层）</div>
+      <div class="topology-legend">
+        <span><span class="legend-dot" style="background:#B99B5F"></span> 知识层</span>
+        <span><span class="legend-dot" style="background:#A08C64"></span> 运维层</span>
+        <span><span class="legend-dot" style="background:#7A9E7E"></span> 工具层</span>
+        <span><span class="legend-dot online"></span> 在线</span>
+        <span><span class="legend-dot offline"></span> 离线</span>
+      </div>
+      <div class="agent-cards" id="agent-cards"></div>
+    </div>
+
     <!-- 拓扑图 -->
     <div class="topology-panel">
-      <div class="topology-title">全局工单流转拓扑图</div>
+      <div class="topology-title">全局工单流转拓扑图（三层同心圆：圆心 Hub → 知识层 → 运维层 → 工具层）</div>
       <div class="topology-legend">
-        <span><span class="legend-dot online"></span> 在线</span>
-        <span><span class="legend-dot overload"></span> 高载</span>
-        <span><span class="legend-dot offline"></span> 离线</span>
-        <span>➡️ 工单流向</span>
+        <span><span class="legend-dot" style="background:#B99B5F"></span> 知识层</span>
+        <span><span class="legend-dot" style="background:#A08C64"></span> 运维层</span>
+        <span><span class="legend-dot" style="background:#7A9E7E"></span> 工具层</span>
+        <span><span class="legend-dot online"></span> 心跳连接</span>
+        <span><span class="legend-dot" style="background:#D4A574"></span> 数据/调用连接</span>
       </div>
-      <canvas id="topology-canvas"></canvas>
+      <canvas id="topology-canvas" style="height:560px;"></canvas>
     </div>
 
     <!-- 热力图 -->
@@ -710,115 +735,112 @@ body {
 // 拓扑图绘制
 function drawTopology() {
   const canvas = document.getElementById('topology-canvas');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const rect = canvas.parentElement.getBoundingClientRect();
   canvas.width = rect.width;
-  canvas.height = rect.height;
-
+  canvas.height = 560;
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  const agents = window.LIVE_AGENTS || [];
-  if (!agents.length) {
+  const topo = window.TOPO || null;
+  if (!topo || !topo.rings) {
     ctx.fillStyle = '#808080';
     ctx.font = '12px "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('暂无 Agent 数据', w / 2, h / 2);
-    requestAnimationFrame(drawTopology);
+    ctx.fillText('暂无拓扑数据（登录后加载）', w / 2, h / 2);
     return;
   }
 
   const cx = w / 2, cy = h / 2;
-  const hubR = 22;
   const now = Date.now() / 1000;
+  const R = Math.min(w, h) / 2 - 65;
+  const ringR = { '知识层': R * 0.40, '运维层': R * 0.66, '工具层': R * 0.92 };
+  const order = ['知识层', '运维层', '工具层'];
 
-  // 分层：运维层（内圈）+ 工作层（外圈）
-  const OPS_TYPES = ['base', 'ops', 'security', 'maintenance', 'legal', 'unknown'];
-  const opsAgents = [];
-  const workAgents = [];
-  agents.forEach(function (a) {
-    if (a.agent_id === 'AKO_hub') return;  // hub 是中心节点
-    if (OPS_TYPES.indexOf(a.agent_type) >= 0) opsAgents.push(a);
-    else workAgents.push(a);
+  order.forEach(function (layer) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR[layer], 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(160,160,160,0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const lx = cx + ringR[layer] * Math.cos(-Math.PI / 2);
+    const ly = cy + ringR[layer] * Math.sin(-Math.PI / 2);
+    ctx.fillStyle = (topo.layer_colors && topo.layer_colors[layer]) || '#A08C64';
+    ctx.font = 'bold 11px "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(layer, lx, ly - 9);
   });
 
-  const ringOuter = Math.min(w, h) / 2 - 55;
-  const ringInner = ringOuter - 85;
+  const pos = {};
+  order.forEach(function (layer) {
+    const list = topo.rings[layer] || [];
+    const n = list.length, rr = ringR[layer];
+    list.forEach(function (a, i) {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+      pos[a.agent_id] = { x: cx + rr * Math.cos(angle), y: cy + rr * Math.sin(angle), a: a };
+    });
+  });
 
-  function drawNode(a, x, y) {
+  topo.edges.forEach(function (e) {
+    if (e.type !== 'heartbeat') return;
+    const p = pos[e.from];
+    if (!p) return;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(p.x, p.y);
+    ctx.strokeStyle = 'rgba(126,198,153,0.26)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  });
+
+  topo.edges.forEach(function (e) {
+    if (e.type === 'heartbeat') return;
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.max(Math.hypot(dx, dy), 1);
+    const nx = -dy / d, ny = dx / d;
+    const cpx = (a.x + b.x) / 2 + nx * 24, cpy = (a.y + b.y) / 2 + ny * 24;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.quadraticCurveTo(cpx, cpy, b.x, b.y);
+    ctx.strokeStyle = e.online ? 'rgba(212,164,116,0.5)' : 'rgba(212,164,116,0.16)';
+    ctx.lineWidth = e.online ? 1.4 : 1;
+    if (!e.online) ctx.setLineDash([3, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  Object.keys(pos).forEach(function (id) {
+    const p = pos[id], a = p.a;
     const online = a.online;
-    const cpu = a.cpu_percent;
-    const overload = online && cpu != null && cpu > 80;
-    const t = (a.agent_type || '') + '';
-    const sqType = t === 'legal' || t === 'maintenance' || t === 'security';
-
-    let fill, stroke;
-    if (!online) { fill = '#3D3328'; stroke = '#808080'; }
-    else if (overload) { fill = '#B99B5F'; stroke = '#EBDAB9'; }
-    else { fill = '#7A9E7E'; stroke = '#EBDAB9'; }
-
-    const size = 12;
-    if (sqType) {
-      ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
-      ctx.fillRect(x - size, y - size, size * 2, size * 2);
-      ctx.strokeRect(x - size, y - size, size * 2, size * 2);
-    } else {
-      ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2);
-      ctx.fillStyle = fill; ctx.fill();
-      ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
-    }
-
+    const color = a.color || '#A08C64';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+    ctx.fillStyle = online ? color : '#3D3328';
+    ctx.fill();
+    ctx.strokeStyle = online ? '#EBDAB9' : '#808080';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     if (online) {
-      const pulse = 1 + 0.35 * Math.sin(now * 3);
+      const pulse = 1 + 0.3 * Math.sin(now * 3);
       ctx.beginPath();
-      ctx.arc(x, y, size + 3 + pulse * 2.5, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(126,198,153,0.55)';
+      ctx.arc(p.x, p.y, 14 + pulse * 2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(126,198,153,0.4)';
       ctx.lineWidth = 1;
       ctx.stroke();
     }
-
-    const name = a.name_zh || a.name || a.agent_id || '?';
     ctx.fillStyle = online ? '#EBDAB9' : '#808080';
     ctx.font = '9px "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, x, y + size + 11);
-  }
+    ctx.fillText(a.name_zh || a.agent_id || '?', p.x, p.y + 23);
+  });
 
-  function drawGroup(list, ringR, label) {
-    const n = list.length;
-    if (!n) return;
-    // 连线
-    list.forEach((a, i) => {
-      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-      const x = cx + ringR * Math.cos(angle);
-      const y = cy + ringR * Math.sin(angle);
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(x, y);
-      ctx.strokeStyle = a.online ? 'rgba(126,198,153,0.30)' : 'rgba(128,128,128,0.12)';
-      ctx.lineWidth = a.online ? 1.5 : 1;
-      ctx.stroke();
-    });
-    // 节点
-    list.forEach((a, i) => {
-      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-      const x = cx + ringR * Math.cos(angle);
-      const y = cy + ringR * Math.sin(angle);
-      drawNode(a, x, y);
-    });
-    // 环形标签
-    ctx.fillStyle = 'rgba(160,160,160,0.6)';
-    ctx.font = '10px "PingFang SC", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(label, cx + ringR + 8, cy);
-  }
-
-  drawGroup(opsAgents, ringInner, '运维层');
-  drawGroup(workAgents, ringOuter, '工作层');
-
-  // Hub 中心节点
   ctx.beginPath();
-  ctx.arc(cx, cy, hubR, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 20, 0, Math.PI * 2);
   ctx.fillStyle = '#B99B5F';
   ctx.fill();
   ctx.strokeStyle = '#EBDAB9';
@@ -828,8 +850,36 @@ function drawTopology() {
   ctx.font = 'bold 12px "PingFang SC", sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('HUB', cx, cy + 4);
+  if (topo.hub && topo.hub.online) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(126,198,153,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
 
-  requestAnimationFrame(drawTopology);
+function renderAgentCards(topo) {
+  const el = document.getElementById('agent-cards');
+  if (!el || !topo) return;
+  const order = ['知识层', '运维层', '工具层'];
+  let html = '';
+  if (topo.hub) {
+    const a = topo.hub;
+    html += '<div class="agent-card" style="border-left:3px solid #B99B5F">'
+      + '<div class="agent-card-title"><span class="card-dot ' + (a.online ? 'online' : 'offline') + '"></span>总线调度中枢'
+      + '<span class="agent-card-tier">' + (a.quality_tier || 'S') + '</span></div>'
+      + '<div class="agent-card-meta">AKO_hub · 圆心 · ' + (a.lifecycle_state || '') + '</div></div>';
+  }
+  order.forEach(function (layer) {
+    (topo.rings[layer] || []).forEach(function (a) {
+      html += '<div class="agent-card" style="border-left:3px solid ' + (a.color || '#A08C64') + '">'
+        + '<div class="agent-card-title"><span class="card-dot ' + (a.online ? 'online' : 'offline') + '"></span>' + (a.name_zh || a.agent_id)
+        + '<span class="agent-card-tier">' + (a.quality_tier || 'C') + '</span></div>'
+        + '<div class="agent-card-meta">' + a.agent_id + ' · ' + layer + ' · ' + (a.lifecycle_state || '') + '</div></div>';
+    });
+  });
+  el.innerHTML = html;
 }
 
 // 审计折叠
@@ -974,6 +1024,13 @@ drawTopology();
       renderHubNodes(o.hub_nodes || []);
       renderLegislation(o.legislation || []);
       applyLiveAgents(o);
+      try {
+        var tr = await fetch("/api/governance/topology");
+        var t = await tr.json();
+        window.TOPO = t;
+        renderAgentCards(t);
+        drawTopology();
+      } catch (te) { /* 拓扑数据暂不可用 */ }
     } catch (e) {
       var sys = $id("m-sys");
       if (sys) sys.textContent = "🔴 连接失败";
