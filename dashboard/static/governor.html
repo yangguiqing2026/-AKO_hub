@@ -605,7 +605,7 @@ body {
 
     <!-- 热力图 -->
     <div class="heatmap-panel">
-      <div class="heatmap-title" style="cursor:pointer;" onclick="toggleHeatmap()">
+      <div class="heatmap-title" id="heatmap-title" style="cursor:pointer;">
         <span>Agent 总览热力</span>
         <span style="font-size:11px;color:var(--amber-gold);">点击折叠 / 悬停查看详情 <b id="heatmap-toggle">▲</b></span>
       </div>
@@ -1124,6 +1124,10 @@ drawTopology();
 
   bindLogin();
   showLogin();
+  (function bindHeatmapToggle() {
+    var h = $id("heatmap-title");
+    if (h) h.onclick = toggleHeatmap;
+  })();
 })();
 </script>
 
