@@ -64,7 +64,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "taoli_wallboard/tech_docs",
         "description": "建筑结构设计：结构计算、方案设计、技术文档生成",
         "status": "registered",
-        "source_dir": "D:/AKO_architect_agent",
+        "source_dir": "D:/AKO/AKO_architect_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO_drawing_inspector（1 个） ───────────────────────────
@@ -78,7 +78,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "taoli_wallboard/drawings/qc",
         "description": "图纸质检 Agent：图纸规范检查、标注审查",
         "status": "registered",
-        "source_dir": "D:/AKO_drawing_inspector",
+        "source_dir": "D:/AKO/AKO_drawing_inspector_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO_image_analyzer（1 个） ─────────────────────────────
@@ -92,7 +92,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "taoli_wallboard/reports/analyzer",
         "description": "图像分析 Agent：施工现场图像分析、缺陷识别",
         "status": "registered",
-        "source_dir": "D:/AKO_image_analyzer",
+        "source_dir": "D:/AKO/AKO_image_analyzer_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO 主工作流（1 个） ──────────────────────────────────
@@ -106,7 +106,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "taoli_wallboard/workflow_outputs",
         "description": "陶粒墙板智能工作流：配比优化、技术方案、商业分析、质检、可行性研究",
         "status": "registered",
-        "source_dir": "D:/AKO工作流",
+        "source_dir": "D:/AKO/AKO_hub",
         "invoke_mode": "importlib",
     },
     # ── AKO_chat（RAG 知识库对话） ─────────────────────────────
@@ -120,7 +120,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "taoli_wallboard/chat_logs",
         "description": "RAG 知识库对话：建筑规范问答、专业知识检索、引用溯源",
         "status": "registered",
-        "source_dir": "D:/AKO_chat",
+        "source_dir": "D:/AKO/AKO_hub",
         "invoke_mode": "importlib",
     },
     # ── AKO_geo（内容营销×GEO×知识发酵） ─────────────────────────
@@ -148,7 +148,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "reports_output",
         "description": "报表生成：根据 JSON 配置 + 图片数据，Jinja2 渲染生成自包含 HTML 报告",
         "status": "registered",
-        "source_dir": "D:/AKO_Report_Template-v1.0",
+        "source_dir": "D:/AKO/AKO_hub",
         "invoke_mode": "subprocess",
     },
     # ── AKO_business（商业作战指挥） ─────────────────────────────
@@ -162,7 +162,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "business_output",
         "description": "商业作战指挥：报价单生成、风险评估、每日简报",
         "status": "registered",
-        "source_dir": "D:/AKO_business_agent",
+        "source_dir": "D:/AKO/AKO_business_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO_quote（装配式建筑报价引擎） ─────────────────────────
@@ -176,7 +176,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "quote_output",
         "description": "装配式建筑报价引擎：墙板/箱体成本计算、税金汇总",
         "status": "registered",
-        "source_dir": "D:/AKO_quote_agent",
+        "source_dir": "D:/AKO/AKO_quote_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO_media（内容营销流水线） ─────────────────────────────
@@ -190,7 +190,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "media_output",
         "description": "内容营销5层流水线：采集→分析→决策→发布→反馈→进化",
         "status": "registered",
-        "source_dir": "D:/AKO_media_agent",
+        "source_dir": "D:/AKO/AKO_media_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO_layout_agent（智能排版） ──────────────────────────
@@ -204,7 +204,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "layout_output",
         "description": "智能排版：效果图/平面图自动排版为商业签单图册，输出 PDF/PPTX/JPG",
         "status": "registered",
-        "source_dir": "D:/AKO_layout_agent",
+        "source_dir": "D:/AKO/AKO_layout_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO_form_extractor（表单数据提取） ────────────────────
@@ -218,7 +218,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "form_extractor_output",
         "description": "表单提取：微信小程序表单数据 SFTP 拉取 → 本地解析入库",
         "status": "registered",
-        "source_dir": "D:/AKO_form_extractor",
+        "source_dir": "D:/AKO/AKO_hub",
         "invoke_mode": "importlib",
     },
     # ── AKO_netwatch_agent（网络监控） ────────────────────────
@@ -232,7 +232,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "netwatch_output",
         "description": "网络监控：HTTP/SSL/域名/ICP 全量检查 + SFTP 备份管理",
         "status": "registered",
-        "source_dir": "D:/AKO_netwatch_agent",
+        "source_dir": "D:/AKO/AKO_netwatch_agent",
         "invoke_mode": "importlib",
     },
     # ── AKO_knowledge（知识库服务） ───────────────────────────
@@ -246,7 +246,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "knowledge_output",
         "description": "知识库：bge-m3 三向量混合检索 + ChromaDB + FastAPI 服务",
         "status": "registered",
-        "source_dir": "D:/AKO_knowledge",
+        "source_dir": "D:/AKO/AKO_knowledge",
         "invoke_mode": "importlib",
     },
     # ── AKO_law_agent（法律审查与合规校验） ──────────────────

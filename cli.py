@@ -30,12 +30,12 @@ from pathlib import Path
 # ── 路径常量 ───────────────────────────────────────────────────────
 HUB_ROOT = Path(__file__).resolve().parent
 SPOKE_DIRS = {
-    "architect":  "D:/AKO_architect_agent",
-    "inspector":  "D:/AKO_drawing_inspector",
-    "image":      "D:/AKO_image_analyzer",
-    "chat":       "D:/AKO_chat",
-    "workflow":   "D:/AKO工作流",
-    "knowledge":  "D:/AKO_knowledge",
+    "architect":  "D:/AKO/AKO_architect_agent",
+    "inspector":  "D:/AKO/AKO_drawing_inspector_agent",
+    "image":      "D:/AKO/AKO_image_analyzer_agent",
+    "chat":       str(HUB_ROOT),
+    "workflow":   str(HUB_ROOT),
+    "knowledge":  "D:/AKO/AKO_knowledge",
     "geo":        str(HUB_ROOT / "ako_geo"),
 }
 

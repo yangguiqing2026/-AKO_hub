@@ -633,6 +633,15 @@ async def intent_parse(payload: Dict[str, Any]):
     return out
 
 
+@app.get("/landing", response_class=HTMLResponse)
+async def landing():
+    """落地页（默认入口）。"""
+    f = STATIC_DIR / "landing.html"
+    if f.exists():
+        return f.read_text(encoding="utf-8")
+    return "<h1>AKO</h1><p>landing.html 尚未构建。</p>"
+
+
 @app.get("/operator", response_class=HTMLResponse)
 async def operator():
     """AKO_agent工作台页面入口（员工视图，role=operator）。"""

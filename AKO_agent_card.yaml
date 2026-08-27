@@ -30,3 +30,11 @@ tags:
 - infrastructure
 - agent
 - hub
+instance_id: AKO_qwen_v3_14b_inst_0001
+legal_entity: 91520198MAC8N3YB6U
+lineage:
+- family: qwen
+  version: v3_14b
+  base_model: qwen3_14b
+former_names: []
+lifecycle_state: production

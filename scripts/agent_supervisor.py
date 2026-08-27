@@ -63,7 +63,7 @@ def probe_registry(ap: AgentProc) -> bool:
     return (
         ap.proc is not None
         and ap.proc.poll() is None
-        and _http_ok("http://127.0.0.1:8010/ako/api/v1/registry/health")
+        and _http_ok("http://127.0.0.1:5024/ako/api/v1/registry/health")
     )
 
 def probe_audit(ap: AgentProc) -> bool:
@@ -105,7 +105,7 @@ def main() -> None:
         ),
         AgentProc(
             "AKO_registry_agent",
-            [str(REGISTRY_PY), "app.py", "serve", "--port", "8010"],
+            [str(REGISTRY_PY), "app.py", "serve", "--port", "5024"],
             REGISTRY_DIR,
             probe_registry,
         ),
