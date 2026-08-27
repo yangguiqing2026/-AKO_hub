@@ -119,7 +119,7 @@ body {
 <body>
 
 <div class="command-bar">
-  <div class="logo"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO 热力总览</div>
+  <div class="logo" style="cursor:pointer;" onclick="location.href='/'"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO 热力总览</div>
   <div class="bar-right">
     <span class="user-tag" id="user-tag"></span>
     <button class="nav-btn" onclick="location.href='/governor'">🏛 治理指挥室</button>
@@ -227,6 +227,7 @@ body {
       var r = await resp.json();
       if (r.status === "ok") {
         currentUser = r.name || "治理者";
+        try { localStorage.setItem("ako_gov", JSON.stringify({ name: currentUser, t: Date.now() })); } catch (e) {}
         var tag = $id("user-tag");
         if (tag) tag.textContent = "👤 " + currentUser;
         hideLogin();
@@ -251,7 +252,24 @@ body {
   }
 
   bindLogin();
-  showLogin();
+  (function restoreSession() {
+    try {
+      var raw = localStorage.getItem("ako_gov");
+      if (!raw) { showLogin(); return; }
+      var sess = JSON.parse(raw);
+      if (Date.now() - sess.t < 12 * 3600 * 1000) {
+        currentUser = sess.name || "治理者";
+        var tag = $id("user-tag");
+        if (tag) tag.textContent = "👤 " + currentUser;
+        hideLogin();
+        load();
+        setInterval(load, 5000);
+        return;
+      }
+      localStorage.removeItem("ako_gov");
+    } catch (e) {}
+    showLogin();
+  })();
 })();
 </script>
 </body>

@@ -494,7 +494,7 @@ body {
 
 <!-- 顶部指挥栏 -->
 <div class="command-bar">
-  <div class="logo"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO_agent_总控台</div>
+  <div class="logo" style="cursor:pointer;" onclick="location.href='/'"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO_agent_总控台</div>
   <div class="metrics">
     <div class="metric-pill">
       <span class="label">系统</span>
@@ -742,8 +742,9 @@ function drawTopology() {
   const ctx = canvas.getContext('2d');
   const panel = canvas.parentElement;
   const rect = panel.getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = Math.max(rect.height, 360);
+  canvas.width = Math.max(rect.width, 1);
+  canvas.height = Math.max(rect.height, 1);
+  const ringH = Math.min(canvas.width, canvas.height);
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
@@ -758,7 +759,7 @@ function drawTopology() {
 
   const cx = w / 2, cy = h / 2;
   const now = Date.now() / 1000;
-  const R = Math.min(w, h) / 2 - 65;
+  const R = ringH / 2 - 65;
   const ringR = { '知识层': R * 0.40, '运维层': R * 0.66, '工具层': R * 0.92 };
   const order = ['知识层', '运维层', '工具层'];
 
@@ -1107,6 +1108,7 @@ drawTopology();
       var r = await resp.json();
       if (r.status === "ok") {
         currentUser = r.name || "治理者";
+        try { localStorage.setItem("ako_gov", JSON.stringify({ name: currentUser, t: Date.now() })); } catch (e) {}
         hideLogin();
         load();
         setInterval(load, 5000);
@@ -1129,7 +1131,22 @@ drawTopology();
   }
 
   bindLogin();
-  showLogin();
+  (function restoreSession() {
+    try {
+      var raw = localStorage.getItem("ako_gov");
+      if (!raw) { showLogin(); return; }
+      var sess = JSON.parse(raw);
+      if (Date.now() - sess.t < 12 * 3600 * 1000) {
+        currentUser = sess.name || "治理者";
+        hideLogin();
+        load();
+        setInterval(load, 5000);
+        return;
+      }
+      localStorage.removeItem("ako_gov");
+    } catch (e) {}
+    showLogin();
+  })();
   (function bindHeatmapToggle() {
     var h = $id("heatmap-title");
     if (h) h.onclick = toggleHeatmap;
