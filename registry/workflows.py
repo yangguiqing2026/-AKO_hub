@@ -5,7 +5,14 @@ Workflows: 现有 Agent 与 Workflow 的注册信息。
 文档编号: AGE-TECH-AKO-HUB-001 §6.3
 """
 
-from typing import TypedDict, List, Optional
+from typing import TypedDict, List, Optional, Dict, Any
+
+from .taxonomy import (
+    get_domain,
+    get_function,
+    get_category,
+    find_unclassified,
+)
 
 
 class SpokeInfo(TypedDict):
@@ -43,7 +50,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "",
         "description": "总线调度中枢：Agent 注册、意图路由、工作流编排、健康巡检",
         "status": "registered",
-        "source_dir": "E:/AKO_hub",
+        "source_dir": "D:/AKO/AKO_hub",
         "invoke_mode": "importlib",
     },
     # ── AKO_architect_agent（1 个） ─────────────────────────────
@@ -85,7 +92,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "taoli_wallboard/reports/analyzer",
         "description": "图像分析 Agent：施工现场图像分析、缺陷识别",
         "status": "registered",
-        "source_dir": "E:/AKO_image_analyzer_agent",
+        "source_dir": "D:/AKO_image_analyzer",
         "invoke_mode": "importlib",
     },
     # ── AKO 主工作流（1 个） ──────────────────────────────────
@@ -127,7 +134,7 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "output_dir": "geo_output",
         "description": "内容营销×GEO×知识发酵：将业务成果外化为多平台营销内容，AI搜索优化与知识发酵",
         "status": "registered",
-        "source_dir": "D:/AKO_Hub/ako_geo",
+        "source_dir": "D:/AKO/AKO_hub/ako_geo",
         "invoke_mode": "importlib",
     },
     # ── AKO_reports（报表模版生成） ────────────────────────────
@@ -242,242 +249,18 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "source_dir": "D:/AKO_knowledge",
         "invoke_mode": "importlib",
     },
-    # ── AKO_code_compliance（规范合规校验） ────────────────────
+    # ── AKO_law_agent（法律审查与合规校验） ──────────────────
     {
-        "workflow_id": "AKO_code_compliance",
-        "name": "AKO_code_compliance",
+        "workflow_id": "AKO_law_agent",
+        "name": "AKO_law_agent",
         "spoke_type": "agent",
-        "entry_module": "agents.ako_code_compliance",
-        "entry_function": "run",
-        "required_kb_ids": ["ako_building_codes"],
-        "output_dir": "compliance_output",
-        "description": "规范合规校验：自动比对国标/地标，输出合规报告与整改建议",
-        "status": "registered",
-        "source_dir": "D:/AKO_code_compliance",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_material_selector（材料选型） ─────────────────────
-    {
-        "workflow_id": "AKO_material_selector",
-        "name": "AKO_material_selector",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_material_selector",
-        "entry_function": "run",
-        "required_kb_ids": ["ako_material_db"],
-        "output_dir": "material_output",
-        "description": "材料选型：根据性能指标与成本约束，推荐最优建材方案",
-        "status": "registered",
-        "source_dir": "D:/AKO_material_selector",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_energy_analyzer（能耗分析） ───────────────────────
-    {
-        "workflow_id": "AKO_energy_analyzer",
-        "name": "AKO_energy_analyzer",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_energy_analyzer",
+        "entry_module": "agents.ako_law_adapter",
         "entry_function": "run",
         "required_kb_ids": [],
-        "output_dir": "energy_output",
-        "description": "能耗分析：建筑热工模拟、节能优化建议、绿建评分",
-        "status": "registered",
-        "source_dir": "D:/AKO_energy_analyzer",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_fire_safety（消防设计） ──────────────────────────
-    {
-        "workflow_id": "AKO_fire_safety",
-        "name": "AKO_fire_safety",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_fire_safety",
-        "entry_function": "run",
-        "required_kb_ids": ["ako_fire_codes"],
-        "output_dir": "fire_safety_output",
-        "description": "消防设计：疏散计算、防火分区、消防设施布置",
-        "status": "registered",
-        "source_dir": "D:/AKO_fire_safety",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_accessibility（无障碍设计） ───────────────────────
-    {
-        "workflow_id": "AKO_accessibility",
-        "name": "AKO_accessibility",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_accessibility",
-        "entry_function": "run",
-        "required_kb_ids": ["ako_accessibility_codes"],
-        "output_dir": "accessibility_output",
-        "description": "无障碍设计：坡道/电梯/卫生间无障碍合规校验与方案生成",
-        "status": "registered",
-        "source_dir": "D:/AKO_accessibility",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_site_planner（场地规划） ─────────────────────────
-    {
-        "workflow_id": "AKO_site_planner",
-        "name": "AKO_site_planner",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_site_planner",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "site_output",
-        "description": "场地规划：用地分析、建筑退距、日照计算、总图排版",
-        "status": "registered",
-        "source_dir": "D:/AKO_site_planner",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_mep_engineer（机电设计） ─────────────────────────
-    {
-        "workflow_id": "AKO_mep_engineer",
-        "name": "AKO_mep_engineer",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_mep_engineer",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "mep_output",
-        "description": "机电设计：暖通/给排水/电气负荷计算与管线综合",
-        "status": "registered",
-        "source_dir": "D:/AKO_mep_engineer",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_interior_designer（室内设计） ─────────────────────
-    {
-        "workflow_id": "AKO_interior_designer",
-        "name": "AKO_interior_designer",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_interior_designer",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "interior_output",
-        "description": "室内设计：空间规划、材料搭配、软装方案、效果图生成",
-        "status": "registered",
-        "source_dir": "D:/AKO_interior_designer",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_landscape（景观设计） ────────────────────────────
-    {
-        "workflow_id": "AKO_landscape",
-        "name": "AKO_landscape",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_landscape",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "landscape_output",
-        "description": "景观设计：绿化配置、景观布局、海绵城市计算",
-        "status": "registered",
-        "source_dir": "D:/AKO_landscape",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_project_manager（项目管理） ──────────────────────
-    {
-        "workflow_id": "AKO_project_manager",
-        "name": "AKO_project_manager",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_project_manager",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "project_output",
-        "description": "项目管理：进度编排、资源调度、里程碑跟踪、风险预警",
-        "status": "registered",
-        "source_dir": "D:/AKO_project_manager",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_cost_estimator（造价估算） ───────────────────────
-    {
-        "workflow_id": "AKO_cost_estimator",
-        "name": "AKO_cost_estimator",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_cost_estimator",
-        "entry_function": "run",
-        "required_kb_ids": ["ako_cost_database"],
-        "output_dir": "cost_output",
-        "description": "造价估算：工程量清单、综合单价分析、税金汇总、概预算编制",
-        "status": "registered",
-        "source_dir": "D:/AKO_cost_estimator",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_bim_exporter（BIM导出） ──────────────────────────
-    {
-        "workflow_id": "AKO_bim_exporter",
-        "name": "AKO_bim_exporter",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_bim_exporter",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "bim_output",
-        "description": "BIM导出：IFC/GLTF/Revit 多格式转换与模型轻量化",
-        "status": "registered",
-        "source_dir": "D:/AKO_bim_exporter",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_document_writer（文档撰写） ──────────────────────
-    {
-        "workflow_id": "AKO_document_writer",
-        "name": "AKO_document_writer",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_document_writer",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "document_output",
-        "description": "文档撰写：设计说明、技术报告、投标书自动撰写",
-        "status": "registered",
-        "source_dir": "D:/AKO_document_writer",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_safety_inspector（安全巡检） ─────────────────────
-    {
-        "workflow_id": "AKO_safety_inspector",
-        "name": "AKO_safety_inspector",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_safety_inspector",
-        "entry_function": "run",
-        "required_kb_ids": ["ako_safety_codes"],
-        "output_dir": "safety_output",
-        "description": "安全巡检：施工现场安全隐患识别、整改通知生成",
-        "status": "registered",
-        "source_dir": "D:/AKO_safety_inspector",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_quality_inspector（质量检查） ────────────────────
-    {
-        "workflow_id": "AKO_quality_inspector",
-        "name": "AKO_quality_inspector",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_quality_inspector",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "quality_output",
-        "description": "质量检查：施工质量抽检记录、偏差分析、验收报告",
-        "status": "registered",
-        "source_dir": "D:/AKO_quality_inspector",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_scheduler（施工排期） ───────────────────────────
-    {
-        "workflow_id": "AKO_scheduler",
-        "name": "AKO_scheduler",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_scheduler",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "schedule_output",
-        "description": "施工排期：甘特图生成、关键路径计算、资源冲突检测",
-        "status": "registered",
-        "source_dir": "D:/AKO_scheduler",
-        "invoke_mode": "importlib",
-    },
-    # ── AKO_surveyor（测量测绘） ────────────────────────────
-    {
-        "workflow_id": "AKO_surveyor",
-        "name": "AKO_surveyor",
-        "spoke_type": "agent",
-        "entry_module": "agents.ako_surveyor",
-        "entry_function": "run",
-        "required_kb_ids": [],
-        "output_dir": "survey_output",
-        "description": "测量测绘：地形数据处理、土方计算、坐标转换",
-        "status": "registered",
-        "source_dir": "D:/AKO_surveyor",
+        "output_dir": "law_output",
+        "description": "法律审查与合规校验：六维度评分卡 + legal_self_check，Vault 立法文件合规审查",
+        "status": "active",
+        "source_dir": "D:/AKO/AKO_law_agent",
         "invoke_mode": "importlib",
     },
 ]
@@ -545,3 +328,37 @@ def get_spokes_by_source_dir(source_dir: str) -> List[SpokeInfo]:
         s for s in SPOKE_REGISTRY
         if s.get("source_dir", "").replace("\\", "/").rstrip("/") == normalized
     ]
+
+
+# ── 分类学派生（单一数据源：registry/taxonomy.py） ─────────────
+
+def enrich_spoke(spoke: SpokeInfo) -> Dict[str, Any]:
+    """
+    在 Spoke 注册信息上附加三维分类字段。
+
+    返回包含 domain / function / category 的字典。
+    分类值统一来自 registry/taxonomy.py，不在注册表内重复维护。
+    """
+    wid = spoke["workflow_id"]
+    enriched = dict(spoke)
+    enriched["domain"] = get_domain(wid)
+    enriched["function"] = get_function(wid)
+    enriched["category"] = get_category(wid)
+    return enriched
+
+
+def list_spokes_enriched() -> List[Dict[str, Any]]:
+    """返回全部 Spoke 的富化信息（含 domain / function / category）。"""
+    return [enrich_spoke(s) for s in SPOKE_REGISTRY]
+
+
+def list_unclassified() -> List[str]:
+    """
+    返回「未分类」的 workflow_id 列表。
+
+    覆盖两类情况：
+      1. 已注册但未在 taxonomy 登记；
+      2. 在 taxonomy 登记但 domain/function 缺失。
+    """
+    registered_ids = [s["workflow_id"] for s in SPOKE_REGISTRY]
+    return find_unclassified(registered_ids)

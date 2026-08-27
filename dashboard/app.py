@@ -1,0 +1,1176 @@
+"""
+hub/dashboard/app.py
+AKO Dashboard 后端 — FastAPI + WebSocket 实时推送 + 完整运营台
+
+定位：AKO Hub 的唯一 Web 入口（完整运营台）。
+  1. 看板（只读）：Agent 接入状态、阶段、质检分数（来自 registry + pipeline_state.json）。
+  2. 任务输入：POST /api/tasks 提交任务（内部转发 hub_api.submit_task）。
+  3. 任务管理：GET /api/tasks 读任务队列表。
+  4. 健康巡检：GET /api/health/agents + /api/health/alerts（读 ako_hub.db 心跳库）。
+  5. Agent 注册中心：GET/POST/DELETE /api/spokes + GET /api/http-agents。
+  6. 事件流：GET /api/events（读 events/{pending,completed,failed}）。
+  7. 知识库与文件：GET /api/knowledge-bases + GET /api/files。
+  8. 实时推送：WebSocket /ws，监听 pipeline_state.json 变化主动广播。
+
+用法:
+    python dashboard/app.py                 # 直接用脚本路径启动
+    python -m dashboard.app                 # 或作为包启动
+    python cli.py ui                        # 经 cli 转发（指向本文件）
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import sys
+import asyncio
+from pathlib import Path
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import uuid
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, FileResponse
+
+# ── 路径与常量 ───────────────────────────────────────────────────
+
+AKO_HUB_ROOT = Path(__file__).resolve().parent.parent
+if str(AKO_HUB_ROOT) not in sys.path:
+    sys.path.insert(0, str(AKO_HUB_ROOT))
+
+AKO_ROOT = Path(os.getenv("AKO_ROOT", "D:/AKO"))
+STATE_FILE = AKO_ROOT / "pipeline_state.json"
+STATIC_DIR = Path(__file__).parent / "static"
+
+# 心跳监控库、事件流、HTTP 注册中心文件
+HEARTBEAT_DB = AKO_HUB_ROOT / "ako_hub.db"
+EVENTS_ROOT = AKO_HUB_ROOT / "events"
+HTTP_AGENTS_FILE = AKO_HUB_ROOT / "registry" / "http_registered_agents.json"
+OPERATOR_CAPS_FILE = AKO_HUB_ROOT / "config" / "operator_capabilities.yaml"
+ROUTING_RULES_FILE = AKO_HUB_ROOT / "config" / "routing_rules.yaml"
+EMPLOYEE_ACCESS_FILE = AKO_HUB_ROOT / "config" / "employee_access.yaml"
+GOVERNOR_ACCESS_FILE = AKO_HUB_ROOT / "config" / "governor_access.yaml"
+AGENT_NAMES_FILE = AKO_HUB_ROOT / "config" / "agent_names.yaml"
+
+app = FastAPI(title="AKO Dashboard")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.middleware("http")
+async def _no_cache_html(request, call_next):
+    """HTML 响应禁用缓存，避免前端改版后浏览器仍显示旧页面。"""
+    response = await call_next(request)
+    ct = response.headers.get("content-type", "")
+    if "text/html" in ct:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
+# ── 路径解析（与 hub_api 保持一致） ───────────────────────────────
+
+def _resolve_paths() -> Dict[str, str]:
+    try:
+        import yaml
+        cfg_path = AKO_HUB_ROOT / "config" / "hub.yaml"
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        root = Path(cfg["sync_root"]).resolve()
+        return {
+            "sync_root": str(root),
+            "db_path": str(root / cfg.get("meta_db", "age_hub.db")),
+            "chroma_root": str(root / cfg.get("chroma_root", "chroma_db")),
+            "file_root": str(root / cfg.get("file_root", "files")),
+        }
+    except Exception:
+        return {
+            "sync_root": str(AKO_HUB_ROOT),
+            "db_path": str(AKO_HUB_ROOT / "age_hub.db"),
+            "chroma_root": str(AKO_HUB_ROOT / "chroma_db"),
+            "file_root": str(AKO_HUB_ROOT / "files"),
+        }
+
+
+# ── 看板状态（注册表 → Agent 清单 + 状态文件 → 详情） ────────────
+
+def _load_registry() -> dict:
+    try:
+        from registry.workflows import list_all_spokes
+        spokes = list_all_spokes()
+        return {s["workflow_id"]: s for s in spokes if s.get("spoke_type") == "agent"}
+    except Exception:
+        return {}
+
+
+def _load_state() -> dict:
+    if STATE_FILE.exists():
+        try:
+            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def _ensure_state_file() -> dict:
+    state = _load_state()
+    if not STATE_FILE.exists():
+        registry = _load_registry()
+        agents = {}
+        for wf_id, info in registry.items():
+            agents[wf_id] = {
+                "stage": "S1_init",
+                "name": info.get("name", wf_id),
+                "state": "S1_init",
+                "qc_score": None,
+                "veto_fails": [],
+                "updated_at": None,
+            }
+        state = {"agents": agents}
+        try:
+            STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            STATE_FILE.write_text(
+                json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
+    return state
+
+
+def _heartbeat_status_map() -> Dict[str, Dict[str, Any]]:
+    """返回 agent_id -> 心跳状态字段 (online/last_heartbeat/display_name/agent_type/资源)。"""
+    data = _health_agents()
+    mapping: Dict[str, Dict[str, Any]] = {}
+    for a in data.get("agents", []):
+        agent_id = a.get("agent_id")
+        if agent_id:
+            mapping[agent_id] = a
+    return mapping
+
+
+def _merged_state() -> dict:
+    registry = _load_registry()
+    state = _ensure_state_file()
+    agents = state.get("agents", {})
+
+    for wf_id, info in registry.items():
+        if wf_id not in agents:
+            agents[wf_id] = {
+                "stage": "S1_init",
+                "name": info.get("name", wf_id),
+                "state": "S1_init",
+                "qc_score": None,
+                "veto_fails": [],
+                "updated_at": None,
+            }
+
+    # 合并心跳 agent：为流水线 agent 叠加在线状态，同时让仅在心跳库注册的 agent 也出现在看板
+    for agent_id, hb in _heartbeat_status_map().items():
+        entry = agents.get(agent_id)
+        if entry is None:
+            entry = {
+                "stage": "S1_init",
+                "name": hb.get("display_name") or agent_id,
+                "state": "S1_init",
+                "qc_score": None,
+                "veto_fails": [],
+                "updated_at": None,
+                "heartbeat_only": True,
+            }
+            agents[agent_id] = entry
+        entry["online"] = bool(hb.get("online"))
+        entry["last_heartbeat"] = hb.get("last_heartbeat")
+        entry["agent_type"] = hb.get("agent_type")
+        entry["display_name"] = hb.get("display_name") or entry.get("name", agent_id)
+        entry["cpu_percent"] = hb.get("cpu_percent")
+        entry["memory_mb"] = hb.get("memory_mb")
+        entry["last_task_status"] = hb.get("last_task_status")
+
+    state["agents"] = agents
+    return state
+
+
+# ── 任务管理（转发 hub_api） ─────────────────────────────────────
+
+def _list_tasks(limit: int = 100) -> Dict[str, Any]:
+    """读取 task_queue 表，返回任务列表。"""
+    from core.hub_db import HubDB
+
+    paths = _resolve_paths()
+    db = HubDB(paths["db_path"])
+    try:
+        db.connect()
+        db.init_schema()
+        rows = db.fetchall(
+            "SELECT * FROM task_queue ORDER BY COALESCE(started_at, '') DESC LIMIT ?",
+            (limit,),
+        )
+        return {"tasks": rows}
+    except Exception as e:
+        return {"tasks": [], "error": f"{type(e).__name__}: {e}"}
+    finally:
+        db.close()
+
+
+# ── 健康巡检（心跳监控库 ako_hub.db） ────────────────────────────
+
+def _init_heartbeat_db() -> None:
+    """确保心跳库表结构存在（幂等）。"""
+    try:
+        from heartbeat.heartbeat_server import init_heartbeat_db
+        init_heartbeat_db(str(HEARTBEAT_DB))
+    except Exception:
+        pass
+
+
+def _health_agents() -> Dict[str, Any]:
+    """查询各 Agent 心跳与在线状态。"""
+    _init_heartbeat_db()
+    try:
+        from heartbeat.heartbeat_receiver import get_agents_status
+        return get_agents_status(str(HEARTBEAT_DB))
+    except Exception as e:
+        return {"status": "error", "message": f"{type(e).__name__}: {e}", "agents": []}
+
+
+def _health_alerts(limit: int = 100) -> List[Dict[str, Any]]:
+    """读取告警表。"""
+    _init_heartbeat_db()
+    try:
+        conn = sqlite3.connect(str(HEARTBEAT_DB))
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT * FROM alerts ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+    except Exception:
+        return []
+
+
+# ── Agent 注册中心 ───────────────────────────────────────────────
+
+def _list_spokes(spoke_type: str = "") -> List[Dict[str, Any]]:
+    from hub_api import list_spokes
+    return list_spokes(spoke_type=spoke_type)
+
+
+def _http_registered_agents() -> Dict[str, Any]:
+    if HTTP_AGENTS_FILE.exists():
+        try:
+            return json.loads(HTTP_AGENTS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+# ── 事件流（events/{pending,completed,failed}） ──────────────────
+
+def _list_events(limit: int = 100) -> Dict[str, Any]:
+    """读取事件总线三个目录，返回最新事件与计数。"""
+    result: Dict[str, Any] = {"pending": [], "completed": [], "failed": [], "counts": {}}
+    for key in ("pending", "completed", "failed"):
+        d = EVENTS_ROOT / key
+        if not d.exists():
+            result["counts"][key] = 0
+            continue
+        files = sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        result["counts"][key] = len(files)
+        bucket = result[key]
+        for f in files[:limit]:
+            try:
+                bucket.append(json.loads(f.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+    return result
+
+
+# ── WebSocket 连接池 ─────────────────────────────────────────────
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        await self.push_state(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        disconnected = []
+        for conn in self.active_connections:
+            try:
+                await conn.send_json(message)
+            except Exception:
+                disconnected.append(conn)
+        for conn in disconnected:
+            self.disconnect(conn)
+
+    async def push_state(self, websocket: WebSocket):
+        await websocket.send_json({"type": "full_state", "data": _merged_state()})
+
+
+manager = ConnectionManager()
+
+
+# ── 看板路由 ─────────────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    landing_file = STATIC_DIR / "landing.html"
+    if landing_file.exists():
+        return landing_file.read_text(encoding="utf-8")
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return index_file.read_text(encoding="utf-8")
+    return "<h1>AKO Dashboard</h1><p>Frontend not built yet.</p>"
+
+
+@app.get("/api/state")
+async def get_state():
+    return _merged_state()
+
+
+@app.get("/api/agents")
+async def get_agents():
+    return _merged_state().get("agents", {})
+
+
+# ── 健康巡检路由 ─────────────────────────────────────────────────
+
+@app.get("/api/health/agents")
+async def health_agents():
+    return _health_agents()
+
+
+@app.get("/api/health/alerts")
+async def health_alerts():
+    return {"alerts": _health_alerts()}
+
+
+# ── Agent 注册中心路由 ───────────────────────────────────────────
+
+@app.get("/api/spokes")
+async def get_spokes(spoke_type: str = ""):
+    return {"spokes": _list_spokes(spoke_type)}
+
+
+@app.post("/api/spokes")
+async def create_spoke(payload: Dict[str, Any]):
+    """注册一个 Spoke（转发 hub_api.register_spoke_api）。"""
+    from hub_api import register_spoke_api
+
+    required = ["workflow_id", "name", "spoke_type", "entry_module", "source_dir"]
+    missing = [k for k in required if not str(payload.get(k, "")).strip()]
+    if missing:
+        return {"status": "error", "message": f"缺少必填字段: {', '.join(missing)}"}
+
+    kb_ids = payload.get("required_kb_ids") or []
+    if isinstance(kb_ids, str):
+        kb_ids = [x.strip() for x in kb_ids.split(",") if x.strip()]
+
+    return register_spoke_api(
+        workflow_id=str(payload["workflow_id"]).strip(),
+        name=str(payload["name"]).strip(),
+        spoke_type=str(payload["spoke_type"]).strip(),
+        entry_module=str(payload["entry_module"]).strip(),
+        source_dir=str(payload["source_dir"]).strip(),
+        entry_function=str(payload.get("entry_function", "run") or "run").strip(),
+        required_kb_ids=kb_ids,
+        output_dir=str(payload.get("output_dir", "")).strip(),
+        description=str(payload.get("description", "")).strip(),
+    )
+
+
+@app.delete("/api/spokes/{workflow_id}")
+async def delete_spoke(workflow_id: str):
+    """移除一个已注册的 Spoke。"""
+    from hub_api import remove_spoke
+    return remove_spoke(workflow_id)
+
+
+@app.get("/api/http-agents")
+async def http_agents():
+    """返回 HTTP 注册中心登记的 Agent（含完整 agent_card）。"""
+    return _http_registered_agents()
+
+
+# ── 事件流路由 ───────────────────────────────────────────────────
+
+@app.get("/api/events")
+async def get_events(limit: int = 100):
+    return _list_events(limit)
+
+
+# ── 知识库与文件路由 ─────────────────────────────────────────────
+
+@app.get("/api/knowledge-bases")
+async def knowledge_bases():
+    """列出知识库。"""
+    try:
+        from hub_api import list_knowledge_bases
+        return {"knowledge_bases": list_knowledge_bases()}
+    except Exception as e:
+        return {"knowledge_bases": [], "error": f"{type(e).__name__}: {e}"}
+
+
+@app.get("/api/files")
+async def get_files(project_tag: str = "", limit: int = 50):
+    """浏览已注册文件。"""
+    from hub_api import list_files
+    return list_files(project_tag=project_tag, limit=limit)
+
+
+# ── 任务路由（Hub 唯一 Web 任务入口） ─────────────────────────────
+
+@app.post("/api/tasks")
+def create_task(payload: Dict[str, Any]):
+    """
+    提交任务。请求体示例：
+        {"intent": "结构计算", "workflow_id": "", "project_tag": "taoli"}
+    二者至少提供一个（intent 走意图路由，workflow_id 走显式指定）。
+    内部转发 hub_api.submit_task，返回最终任务状态。
+    """
+    from hub_api import submit_task
+
+    intent = payload.get("intent", "")
+    workflow_id = payload.get("workflow_id", "")
+    project_tag = payload.get("project_tag", "")
+    trigger = payload.get("trigger", "dashboard")
+
+    task_payload: Dict[str, Any] = {}
+    if workflow_id:
+        task_payload["workflow_id"] = workflow_id
+    if intent:
+        task_payload["intent"] = intent
+    if project_tag:
+        task_payload["project_tag"] = project_tag
+
+    if not task_payload:
+        return {"status": "error", "message": "缺少 intent 或 workflow_id"}
+
+    # submit_task 会触发 langgraph 图执行，可能较慢；FastAPI 对同步 def 自动放线程池执行
+    return submit_task(task_payload, trigger=trigger)
+
+
+@app.get("/api/tasks")
+def list_tasks():
+    """返回任务队列（最近 100 条）。"""
+    return _list_tasks()
+
+
+# ── AKO_agent工作台（Operator View） ─────────────────────────────
+
+def _load_operator_caps() -> Dict[str, Any]:
+    """读取 config/operator_capabilities.yaml。失败返回空配置。"""
+    if OPERATOR_CAPS_FILE.exists():
+        try:
+            import yaml
+            with open(OPERATOR_CAPS_FILE, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return cfg
+        except Exception:
+            pass
+    return {"capabilities": [], "pipelines": [], "templates": []}
+
+
+def _workorder_db() -> Any:
+    """返回已初始化 schema 的 HubDB 实例（调用方负责 close）。"""
+    from core.hub_db import HubDB
+
+    paths = _resolve_paths()
+    db = HubDB(paths["db_path"])
+    db.connect()
+    db.init_schema()
+    return db
+
+
+def _generate_wo_id() -> str:
+    """生成人工工单 ID：WO-YYYYMMDD-HHMMSS-xxxx。"""
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"WO-{ts}-{uuid.uuid4().hex[:4].upper()}"
+
+
+def _spoke_deployable(workflow_id: str) -> bool:
+    """判断 workflow_id 对应 Agent 的 source_dir 是否已部署（目录存在）。"""
+    from registry.workflows import get_spoke_by_id
+
+    spoke = get_spoke_by_id(workflow_id)
+    if not spoke:
+        return False
+    src = spoke.get("source_dir", "")
+    if not src:
+        return False
+    return Path(src).exists()
+
+
+def _load_employee_access() -> List[Dict[str, str]]:
+    """读取员工访问控制表（姓名 + 6 位数字指纹）。"""
+    if EMPLOYEE_ACCESS_FILE.exists():
+        try:
+            import yaml
+            with open(EMPLOYEE_ACCESS_FILE, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return cfg.get("employees", []) or []
+        except Exception:
+            pass
+    return []
+
+
+@app.post("/api/auth/login")
+async def auth_login(payload: Dict[str, Any]):
+    """
+    员工指纹登录校验（role=operator）。
+    前端提交 6 位数字指纹，命中员工名单则返回姓名，否则拒绝。
+    """
+    fp = str(payload.get("fingerprint", "") or "").strip()
+    if not fp.isdigit() or len(fp) != 6:
+        return {"status": "fail", "message": "请输入 6 位数字指纹"}
+    for emp in _load_employee_access():
+        if str(emp.get("fingerprint", "")).strip() == fp:
+            return {"status": "ok", "name": emp.get("name", ""), "role": "operator"}
+    return {"status": "fail", "message": "指纹不匹配，无访问权限"}
+
+
+def _load_governor_access() -> List[Dict[str, str]]:
+    """读取老板访问控制表（姓名 + 6 位数字指纹）。"""
+    if GOVERNOR_ACCESS_FILE.exists():
+        try:
+            import yaml
+            with open(GOVERNOR_ACCESS_FILE, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return cfg.get("governors", []) or []
+        except Exception:
+            pass
+    return []
+
+
+def _load_agent_names() -> Dict[str, str]:
+    """读取 Agent 中英文名称对照表。"""
+    if AGENT_NAMES_FILE.exists():
+        try:
+            import yaml
+            with open(AGENT_NAMES_FILE, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return {str(k): str(v) for k, v in (cfg.get("agents", {}) or {}).items()}
+        except Exception:
+            pass
+    return {}
+
+
+@app.post("/api/auth/governor-login")
+async def governor_login(payload: Dict[str, Any]):
+    """
+    老板指纹登录校验（role=governor）。
+    仅命中老板名单（杨贵清/周明静）才放行。
+    """
+    fp = str(payload.get("fingerprint", "") or "").strip()
+    if not fp.isdigit() or len(fp) != 6:
+        return {"status": "fail", "message": "请输入 6 位数字指纹"}
+    for g in _load_governor_access():
+        if str(g.get("fingerprint", "")).strip() == fp:
+            return {"status": "ok", "name": g.get("name", ""), "role": "governor"}
+    return {"status": "fail", "message": "指纹不匹配，无访问权限"}
+
+
+_INTENT_ROUTER = None
+
+
+def _get_intent_router():
+    """懒加载 IntentRouter 单例（避免每次请求重复初始化）。"""
+    global _INTENT_ROUTER
+    if _INTENT_ROUTER is None:
+        from router.intent_router import IntentRouter
+        _INTENT_ROUTER = IntentRouter()
+    return _INTENT_ROUTER
+
+
+@app.post("/api/intent/parse")
+async def intent_parse(payload: Dict[str, Any]):
+    """
+    自然语言意图识别（调用后端 IntentRouter）。
+    返回目标 agent_id + 置信度，并映射到员工台能力目录（若命中）。
+    """
+    text = str(payload.get("text", "") or "").strip()
+    if not text:
+        return {"status": "fail", "message": "请输入需求描述"}
+
+    try:
+        router = _get_intent_router()
+        result = router.parse_intent(text)
+    except Exception as e:
+        return {"status": "fail", "message": f"意图识别服务异常: {e}"}
+
+    # 映射到员工台能力目录（operator_capabilities.yaml 的 workflow_id）
+    caps = (_load_operator_caps() or {}).get("capabilities", [])
+    matched_cap = None
+    for c in caps:
+        if c.get("workflow_id") == result.get("agent_id"):
+            matched_cap = c
+            break
+
+    out = {
+        "status": "ok",
+        "intent": result.get("intent", ""),
+        "agent_id": result.get("agent_id", ""),
+        "confidence": result.get("confidence", 0.0),
+        "dependencies": result.get("dependencies", []),
+        "estimated_time": result.get("estimated_time", 0),
+        "matched": matched_cap is not None,
+    }
+    if matched_cap:
+        out["workflow_id"] = matched_cap.get("workflow_id")
+        out["display"] = matched_cap.get("display")
+    return out
+
+
+@app.get("/operator", response_class=HTMLResponse)
+async def operator():
+    """AKO_agent工作台页面入口（员工视图，role=operator）。"""
+    f = STATIC_DIR / "operator.html"
+    if f.exists():
+        return f.read_text(encoding="utf-8")
+    return "<h1>AKO_agent工作台</h1><p>operator.html 尚未构建。</p>"
+
+
+@app.get("/governor", response_class=HTMLResponse)
+async def governor():
+    """AKO 治理指挥室页面入口（老板视图，role=governor）。"""
+    f = STATIC_DIR / "governor.html"
+    if f.exists():
+        return f.read_text(encoding="utf-8")
+    return "<h1>AKO 治理指挥室</h1><p>governor.html 尚未构建。</p>"
+
+
+@app.get("/api/capabilities")
+async def capabilities():
+    """
+    聚合能力目录：config/operator_capabilities.yaml + registry + 心跳在线状态。
+    返回 [{workflow_id, display, display_agent, name, entry_module, category,
+            sla_seconds, description, online, cpu_percent, last_task_status, deployable}]
+    """
+    cfg = _load_operator_caps()
+    caps = cfg.get("capabilities", [])
+
+    hb_map = _heartbeat_status_map()
+    registry = _load_registry()
+
+    out: List[Dict[str, Any]] = []
+    for cap in caps:
+        wid = cap.get("workflow_id", "")
+        spoke = registry.get(wid, {})
+        hb = hb_map.get(wid, {})
+        out.append({
+            "workflow_id": wid,
+            "display": cap.get("display", wid),
+            "display_agent": cap.get("display_agent", wid),
+            "category": cap.get("category", ""),
+            "sla_seconds": cap.get("sla_seconds"),
+            "description": cap.get("description", spoke.get("description", "")),
+            "entry_module": spoke.get("entry_module", ""),
+            "name": spoke.get("name", wid),
+            "status": spoke.get("status", "registered"),
+            "online": bool(hb.get("online")),
+            "cpu_percent": hb.get("cpu_percent"),
+            "memory_mb": hb.get("memory_mb"),
+            "last_task_status": hb.get("last_task_status"),
+            "deployable": _spoke_deployable(wid),
+        })
+    return {"capabilities": out}
+
+
+@app.get("/api/pipelines")
+async def pipelines():
+    """返回快捷调用流水线配置。"""
+    cfg = _load_operator_caps()
+    return {"pipelines": cfg.get("pipelines", []), "templates": cfg.get("templates", [])}
+
+
+@app.get("/api/governance/overview")
+async def governance_overview():
+    """
+    治理指挥室数据聚合（角色裁剪：role=governor）。
+
+    仅返回治理/监控维度数据（Agent 健康、告警、审计事件、Hub 节点、立法进度），
+    不含员工工单提交、能力目录等操作细节 —— 与 /api/capabilities、/api/workorders 分离，
+    落实《AKO 双层看板设计白皮书》§1.2「视图裁剪原则」。
+    """
+    agents_map = _merged_state().get("agents", {})
+    agent_names = _load_agent_names()
+    agent_list: List[Dict[str, Any]] = []
+    online = offline = overload = 0
+    for agent_id, a in agents_map.items():
+        is_online = bool(a.get("online"))
+        cpu = a.get("cpu_percent")
+        try:
+            cpu_f = float(cpu) if cpu not in (None, "") else None
+        except (TypeError, ValueError):
+            cpu_f = None
+        status = "offline"
+        if is_online:
+            status = "overload" if (cpu_f is not None and cpu_f > 80) else "online"
+        if status == "online":
+            online += 1
+        elif status == "overload":
+            overload += 1
+        else:
+            offline += 1
+        agent_list.append({
+            "agent_id": agent_id,
+            "name": a.get("display_name") or a.get("name") or agent_id,
+            "name_zh": agent_names.get(agent_id, ""),
+            "agent_type": a.get("agent_type") or "functional",
+            "status": status,
+            "online": is_online,
+            "cpu_percent": cpu_f,
+            "last_heartbeat": a.get("last_heartbeat"),
+        })
+
+    alerts = _health_alerts(50) or []
+    events = _list_events(30)
+
+    total = len(agent_list)
+    if total == 0 or (online + overload) == 0:
+        system_status = "down"
+    elif overload > 0 or len(alerts) > 0:
+        system_status = "degraded"
+    else:
+        system_status = "normal"
+
+    return {
+        "role": "governor",
+        "system_status": system_status,
+        "agents": {
+            "total": total,
+            "online": online,
+            "offline": offline,
+            "overload": overload,
+            "list": agent_list,
+        },
+        "alerts": alerts,
+        "events": events,
+        "hub_nodes": [
+            {"name": "Leader", "status": "online"},
+            {"name": "worker-01", "status": "online"},
+            {"name": "worker-02", "status": system_status},
+            {"name": "witness-01", "status": "online"},
+        ],
+        "legislation": [
+            {"name": "宪法", "status": "done", "progress": 100},
+            {"name": "调度法", "status": "done", "progress": 100},
+            {"name": "触发法", "status": "draft", "progress": 75},
+            {"name": "熔断法", "status": "pending", "progress": 30},
+        ],
+    }
+
+
+@app.get("/api/workorders")
+async def list_workorders(status: str = "", project_id: str = ""):
+    """
+    工单导航数据：task_queue 中人工工单（WO- 前缀 + 全部任务）按状态分组。
+    返回 {counts: {...}, groups: {pending:[], running:[], done:[], failed:[], draft:[], deploy_wait:[]}}
+    """
+    db = _workorder_db()
+    try:
+        where = ["task_id LIKE 'WO-%'"]
+        params: List[Any] = []
+        if status:
+            # 过滤前先映射前端状态到多态(可选，这里保持 1:1)
+            where.append("status = ?")
+            params.append(status)
+        if project_id:
+            where.append("payload LIKE ?")
+            params.append(f"%{project_id}%")
+
+        sql = f"SELECT * FROM task_queue WHERE {' AND '.join(where)} ORDER BY COALESCE(started_at, '') DESC"
+        rows = db.fetchall(sql, tuple(params))
+    except Exception as e:
+        return {"counts": {}, "groups": {}, "error": f"{type(e).__name__}: {e}"}
+    finally:
+        db.close()
+
+    buckets = ["draft", "pending", "deploy_wait", "running", "done", "failed", "cancelled"]
+    groups: Dict[str, List[Dict[str, Any]]] = {k: [] for k in buckets}
+    counts: Dict[str, int] = {k: 0 for k in buckets}
+    seen_ids = set()
+
+    for r in rows:
+        wid = (r.get("task_id") or "").strip()
+        if not wid.startswith("WO-"):
+            continue
+        st = r.get("status") or "pending"
+        if st not in groups:
+            st = "pending"
+        # 工单去重：同一 wo_id 可能因重跑产生重复，取最新一条
+        if wid in seen_ids:
+            continue
+        seen_ids.add(wid)
+        item = {
+            "work_order_id": wid,
+            "project_id": _extract_project_id(r),
+            "workflow_id": r.get("workflow_id") or "",
+            "display_cap": r.get("display_cap") or "",
+            "priority": r.get("priority") or "normal",
+            "deadline": r.get("deadline"),
+            "sla_seconds": r.get("sla_seconds"),
+            "status": st,
+            "result_summary": r.get("error_log") or "",
+            "output_file_ids": _parse_ids(r.get("output_file_ids")),
+            "dispatched_task_id": wid,
+            "payload_json": r.get("payload") or "",
+            "raw_payload": r.get("raw_payload") or "",
+            "created_at": r.get("started_at") or r.get("created_at"),
+            "finished_at": r.get("finished_at"),
+        }
+        groups[st].append(item)
+        counts[st] += 1
+
+    return {"counts": counts, "groups": groups}
+
+
+def _parse_ids(raw: Any) -> List[str]:
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return raw
+    try:
+        v = json.loads(raw)
+        return v if isinstance(v, list) else []
+    except Exception:
+        return []
+
+
+def _extract_project_id(row: Dict[str, Any]) -> str:
+    """从工单 payload(JSON) 或 raw_payload(YAML 文本) 中提取 project_id。"""
+    raw = row.get("payload") or ""
+    if raw:
+        try:
+            v = json.loads(raw)
+            if isinstance(v, dict):
+                pid = v.get("project_id") or v.get("project_tag") or ""
+                if pid:
+                    return str(pid)
+        except Exception:
+            pass
+    raw_text = row.get("raw_payload") or ""
+    for line in str(raw_text).splitlines():
+        stripped = line.strip()
+        if stripped.startswith("project_id"):
+            return stripped.split(":", 1)[1].strip().strip('"').strip("'")
+    return ""
+
+
+@app.post("/api/workorders")
+async def create_workorder(payload: Dict[str, Any]):
+    """
+    人工录入工单（写入 task_queue 单表）。
+
+    请求体：
+      {
+        "workflow_id": "AKO_quote_agent",
+        "display_cap": "💰 报价",
+        "project_id": "PRJ-2026-001",
+        "payload": {...业务参数对象...},
+        "raw_payload": "project_id: ...",   # 原始 YAML，可选
+        "priority": "normal",
+        "deadline": "...",
+        "sla_seconds": 15,
+        "save_as": "draft" | "submit"     # draft=存草稿；submit=提交(入队待派发)
+      }
+    """
+    workflow_id = str(payload.get("workflow_id", "")).strip()
+    if not workflow_id:
+        return {"status": "error", "message": "缺少 workflow_id"}
+
+    save_as = payload.get("save_as", "draft")
+    status = "draft" if save_as == "draft" else "pending"
+
+    wo_id = str(payload.get("work_order_id", "")).strip() or _generate_wo_id()
+
+    biz = payload.get("payload") or {}
+    if isinstance(biz, dict):
+        if payload.get("project_id") and not biz.get("project_id"):
+            biz["project_id"] = payload.get("project_id")
+    payload_json = json.dumps(biz, ensure_ascii=False) if biz else (
+        str(payload.get("raw_payload", ""))
+    )
+
+    try:
+        db = _workorder_db()
+        try:
+            db.execute(
+                """INSERT INTO task_queue
+                   (task_id, workflow_id, trigger_agent, trigger_type, payload, status,
+                    display_cap, priority, deadline, sla_seconds, submitter, raw_payload,
+                    started_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (wo_id, workflow_id, "operator", "manual", payload_json, status,
+                 str(payload.get("display_cap", "")), str(payload.get("priority", "normal")),
+                 payload.get("deadline"), payload.get("sla_seconds"),
+                 str(payload.get("submitter", "human")),
+                 str(payload.get("raw_payload", "")), datetime.now().isoformat()),
+            )
+            db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        return {"status": "error", "message": f"{type(e).__name__}: {e}"}
+
+    return {
+        "status": "ok",
+        "work_order_id": wo_id,
+        "record_status": status,
+        "message": "已存草稿" if save_as == "draft" else "已提交，待派发",
+    }
+
+
+@app.get("/api/workorders/{wo_id}")
+async def workorder_detail(wo_id: str):
+    """工单详情。"""
+    db = _workorder_db()
+    try:
+        row = db.fetchone("SELECT * FROM task_queue WHERE task_id=?", (wo_id,))
+    finally:
+        db.close()
+
+    if not row:
+        return {"status": "error", "message": f"未找到工单: {wo_id}"}
+
+    return {
+        "work_order_id": wo_id,
+        "workflow_id": row.get("workflow_id"),
+        "display_cap": row.get("display_cap"),
+        "project_id": _extract_project_id(row),
+        "priority": row.get("priority"),
+        "deadline": row.get("deadline"),
+        "sla_seconds": row.get("sla_seconds"),
+        "status": row.get("status"),
+        "payload_json": row.get("payload"),
+        "raw_payload": row.get("raw_payload"),
+        "result_summary": row.get("error_log"),
+        "output_file_ids": _parse_ids(row.get("output_file_ids")),
+        "created_at": row.get("started_at"),
+        "finished_at": row.get("finished_at"),
+    }
+
+
+@app.patch("/api/workorders/{wo_id}")
+async def update_workorder(wo_id: str, payload: Dict[str, Any]):
+    """
+    编辑工单（草稿/未派发可改），或取消。
+    body: {\"status\": \"draft|pending|cancelled\", \"payload\": {...}, ...}
+    """
+    allowed_status = {"draft", "pending", "cancelled"}
+    db = _workorder_db()
+    try:
+        row = db.fetchone("SELECT * FROM task_queue WHERE task_id=?", (wo_id,))
+        if not row:
+            return {"status": "error", "message": f"未找到工单: {wo_id}"}
+
+        cur_status = row.get("status")
+        if cur_status in ("running", "done", "failed"):
+            return {"status": "error", "message": f"当前状态 {cur_status} 不允许编辑"}
+
+        new_status = payload.get("status") or cur_status
+        if new_status not in allowed_status:
+            return {"status": "error", "message": f"非法状态: {new_status}"}
+
+        biz = payload.get("payload")
+        payload_json = json.dumps(biz, ensure_ascii=False) if biz is not None else None
+        raw = payload.get("raw_payload")
+
+        sets = ["status = ?"]
+        params: List[Any] = [new_status]
+        if payload_json is not None:
+            sets.append("payload = ?")
+            params.append(payload_json)
+        if raw is not None:
+            sets.append("raw_payload = ?")
+            params.append(str(raw))
+        if "priority" in payload:
+            sets.append("priority = ?")
+            params.append(str(payload.get("priority")))
+        if "deadline" in payload:
+            sets.append("deadline = ?")
+            params.append(payload.get("deadline"))
+        params.append(wo_id)
+
+        db.execute(f"UPDATE task_queue SET {', '.join(sets)} WHERE task_id = ?", tuple(params))
+        db.commit()
+    finally:
+        db.close()
+
+    return {"status": "ok", "work_order_id": wo_id, "record_status": new_status}
+
+
+@app.post("/api/workorders/{wo_id}/dispatch")
+async def dispatch_workorder(wo_id: str):
+    """
+    派发工单给 Agent：
+
+    1. 未部署（source_dir 不存在）→ 标 deploy_wait（"待部署"），不调 Agent。
+    2. 已部署 → 以 wo_id 作为 task_id 调 hub_api.submit_task（单项业务 payload 透传）。
+       结果经 master/nodes.py 的 UPSERT 原地回写该行 status。
+    """
+    db = _workorder_db()
+    try:
+        row = db.fetchone("SELECT * FROM task_queue WHERE task_id=?", (wo_id,))
+    finally:
+        db.close()
+
+    if not row:
+        return {"status": "error", "message": f"未找到工单: {wo_id}"}
+
+    workflow_id = row.get("workflow_id") or ""
+    if not workflow_id:
+        return {"status": "error", "message": "工单缺 workflow_id，无法派发"}
+
+    # 未部署检查
+    if not _spoke_deployable(workflow_id):
+        db = _workorder_db()
+        try:
+            db.execute(
+                "UPDATE task_queue SET status='deploy_wait' WHERE task_id=?",
+                (wo_id,),
+            )
+            db.commit()
+        finally:
+            db.close()
+        return {
+            "status": "ok",
+            "work_order_id": wo_id,
+            "record_status": "deploy_wait",
+            "message": f"目标 Agent {workflow_id} 尚未部署，已标记为待部署",
+        }
+
+    # 解析业务 payload
+    biz: Dict[str, Any] = {}
+    raw = row.get("payload") or ""
+    if raw:
+        try:
+            biz = json.loads(raw) if str(raw).strip().startswith("{") else {"intent": str(raw)}
+        except Exception:
+            biz = {"intent": str(raw)}
+
+    biz["workflow_id"] = workflow_id
+    if row.get("display_cap"):
+        biz.setdefault("display_cap", row.get("display_cap"))
+
+    from hub_api import submit_task
+
+    # 以 wo_id 复用为 task_id，保证"一工单=一行"，图执行后 UPSERT 回写
+    result = submit_task(biz, task_id=wo_id, trigger="operator")
+
+    return {
+        "status": "ok",
+        "work_order_id": wo_id,
+        "record_status": result.get("status"),
+        "result": result,
+    }
+
+
+@app.get("/api/workorders/{wo_id}/result")
+async def workorder_result(wo_id: str):
+    """轮询工单结果（聚合最新 task_queue 行 + 输出文件）。"""
+    db = _workorder_db()
+    try:
+        row = db.fetchone("SELECT * FROM task_queue WHERE task_id=?", (wo_id,))
+    finally:
+        db.close()
+
+    if not row:
+        return {"status": "error", "message": f"未找到工单: {wo_id}"}
+
+    return {
+        "work_order_id": wo_id,
+        "status": row.get("status"),
+        "result_summary": row.get("error_log"),
+        "output_file_ids": _parse_ids(row.get("output_file_ids")),
+        "finished_at": row.get("finished_at"),
+    }
+
+
+@app.get("/api/files/{file_id}/download")
+async def file_download(file_id: str):
+    """下载文件注册表中的产出文件。"""
+    from hub_api import _resolve_paths as hub_resolve
+
+    try:
+        paths = hub_resolve()
+    except Exception:
+        paths = _resolve_paths()
+
+    from core.hub_db import HubDB
+
+    db = HubDB(paths["db_path"])
+    try:
+        db.connect()
+        db.init_schema()
+        row = db.fetchone("SELECT * FROM file_registry WHERE file_id=?", (file_id,))
+    finally:
+        db.close()
+
+    if not row:
+        return {"status": "error", "message": f"未找到文件: {file_id}"}
+
+    abs_path = row.get("abs_path") or ""
+    p = Path(abs_path)
+    if not p.exists():
+        return {"status": "error", "message": f"文件不存在: {abs_path}"}
+
+    return FileResponse(str(p), filename=p.name)
+
+
+# ── WebSocket ────────────────────────────────────────────────────
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
+# ── 文件监听 + 广播 ─────────────────────────────────────────────
+
+def get_state_mtime() -> float:
+    return STATE_FILE.stat().st_mtime if STATE_FILE.exists() else 0
+
+
+async def watch_and_broadcast():
+    last_mtime = get_state_mtime()
+    while True:
+        await asyncio.sleep(1)
+        current_mtime = get_state_mtime()
+        if current_mtime != last_mtime:
+            last_mtime = current_mtime
+            await manager.broadcast({
+                "type": "state_update",
+                "data": _merged_state(),
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+
+
+@app.on_event("startup")
+async def startup_event():
+    _ensure_state_file()
+    _init_heartbeat_db()
+    asyncio.create_task(watch_and_broadcast())
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=80)

@@ -37,11 +37,11 @@ def test_task_router():
 
     # 显式 workflow_id
     state = MasterState(
-        task_id="T-001", input_payload={"workflow_id": "wf_ako_architect"},
+        task_id="T-001", input_payload={"workflow_id": "AKO_architect_agent"},
         status="pending", required_kb_ids=[], generated_files=[], retry_count=0, max_retry=3,
     )
     result = task_router(state)
-    assert result["target_workflow"] == "wf_ako_architect"
+    assert result["target_workflow"] == "AKO_architect_agent"
     assert result["status"] == "pending"
     print(f"  [PASS] 显式指定: {result['target_workflow']}")
 
@@ -51,7 +51,7 @@ def test_task_router():
         status="pending", required_kb_ids=[], generated_files=[], retry_count=0, max_retry=3,
     )
     result = task_router(state)
-    assert result["target_workflow"] == "wf_ako_architect"
+    assert result["target_workflow"] == "AKO_architect_agent"
     print(f"  [PASS] 关键词路由: {result['target_workflow']}")
 
     # 图纸质检
@@ -60,7 +60,7 @@ def test_task_router():
         status="pending", required_kb_ids=[], generated_files=[], retry_count=0, max_retry=3,
     )
     result = task_router(state)
-    assert result["target_workflow"] == "wf_ako_inspector_01"
+    assert result["target_workflow"] == "AKO_drawing_inspector"
     print(f"  [PASS] 质检路由: {result['target_workflow']}")
 
     # 无效意图
@@ -178,9 +178,9 @@ def test_error_and_aggregator():
         db.init_schema()
         db.close()
 
-        # error_handler
+        # error_handler（retry_count 已达上限，应返回最终失败）
         state = MasterState(
-            task_id="T-008", status="failed", error_log="测试错误", retry_count=0, max_retry=3,
+            task_id="T-008", status="failed", error_log="测试错误", retry_count=3, max_retry=3,
             input_payload={}, required_kb_ids=[], generated_files=[],
         )
         result = error_handler(state)

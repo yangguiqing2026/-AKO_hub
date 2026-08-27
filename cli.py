@@ -36,7 +36,7 @@ SPOKE_DIRS = {
     "chat":       "D:/AKO_chat",
     "workflow":   "D:/AKO工作流",
     "knowledge":  "D:/AKO_knowledge",
-    "geo":        "D:/AKO_Hub/ako_geo",
+    "geo":        str(HUB_ROOT / "ako_geo"),
 }
 
 # ── 辅助函数 ───────────────────────────────────────────────────────
@@ -55,13 +55,13 @@ def _run_in_dir(cwd: str, cmd: list, python_args: list = None):
     env["PYTHONIOENCODING"] = "utf-8"
 
     try:
-        # [DEPRECATED_GUI] result = subprocess.run(
+        # 非阻塞启动：子进程继承 stdin/stdout/stderr，实现实时输出
+        proc = subprocess.Popen(
             full_cmd,
             cwd=cwd,
             env=env,
-            # 让子进程继承 stdin/stdout/stderr，实现实时输出
         )
-        return result.returncode
+        return proc.wait()
     except KeyboardInterrupt:
         print("\n  已中断")
         return 130
@@ -97,8 +97,9 @@ def _run_spoke(spoke_key: str, script: str, args: list):
     env["PYTHONIOENCODING"] = "utf-8"
 
     try:
-        # [DEPRECATED_GUI] result = subprocess.run(cmd, cwd=spoke_dir, env=env)
-        return result.returncode
+        # 非阻塞启动：子进程继承 stdin/stdout/stderr，实现实时输出
+        proc = subprocess.Popen(cmd, cwd=spoke_dir, env=env)
+        return proc.wait()
     except KeyboardInterrupt:
         print("\n  已中断")
         return 130
@@ -147,7 +148,17 @@ def cmd_chat(args):
 
     py = _spoke_python(spoke_dir)
     print("  启动 AKO_chat 服务 (端口 7861)...")
-    return _run_in_dir(spoke_dir, [py, "chat_app.py"])
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    try:
+        proc = subprocess.Popen([py, "chat_app.py"], cwd=spoke_dir, env=env)
+        return proc.wait()
+    except KeyboardInterrupt:
+        print("\n  已中断")
+        return 130
+    except Exception as e:
+        print(f"  执行失败: {e}")
+        return 1
 
 
 # ── AKO 工作流 ─────────────────────────────────────────────────────
@@ -168,8 +179,22 @@ def cmd_knowledge(args):
 
     py = _spoke_python(spoke_dir)
     print("  启动 AKO_knowledge API (端口 8000)...")
-    return _run_in_dir(spoke_dir, [py, "-m", "uvicorn", "knowledge_service:app",
-                                    "--host", "127.0.0.1", "--port", "8000"])
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    try:
+        proc = subprocess.Popen(
+            [py, "-m", "uvicorn", "knowledge_service:app",
+             "--host", "127.0.0.1", "--port", "8000"],
+            cwd=spoke_dir,
+            env=env,
+        )
+        return proc.wait()
+    except KeyboardInterrupt:
+        print("\n  已中断")
+        return 130
+    except Exception as e:
+        print(f"  执行失败: {e}")
+        return 1
 
 
 # ── AKO GEO（内容营销×GEO×知识发酵）─────────────────────────────────
@@ -177,15 +202,15 @@ def cmd_knowledge(args):
 def cmd_geo(args):
     """启动 AKO_geo GEO 内容生成服务。"""
     print("  启动 AKO_geo GEO 内容生成...")
-    return _run_in_dir(str(HUB_ROOT), [sys.executable, "-m", "ako_geo.spoke"] + args.geo_args)
+    return _run_in_dir(str(HUB_ROOT), ["-m", "ako_geo.spoke"] + args.geo_args)
 
 
 # ── Web UI ─────────────────────────────────────────────────────────
 
 def cmd_ui(args):
-    """启动 Hub Gradio Web UI。"""
-    print("  启动 AKO Hub Web UI (端口 7860)...")
-    return _run_in_dir(str(HUB_ROOT), [sys.executable, "web_ui.py"])
+    """启动 Hub Dashboard（FastAPI，端口 80）。"""
+    print("  启动 AKO Hub Web UI (端口 80，http://AKOagent)...")
+    return _run_in_dir(str(HUB_ROOT), ["dashboard/app.py"])
 
 
 # ── 一键启动 ───────────────────────────────────────────────────────
@@ -223,19 +248,20 @@ def cmd_launch(args):
         time.sleep(1)
 
     # 最后启动 Web UI（前台，阻塞）
-    print("  启动 AKO Hub Web UI (127.0.0.1:7860)...")
+    print("  启动 AKO Hub Web UI (http://AKOagent)...")
     print("  所有服务已启动，按 Ctrl+C 停止\n")
 
+    ui_proc = None
     try:
         ui_proc = subprocess.Popen(
-            [sys.executable, "web_ui.py"],
+            [sys.executable, "dashboard/app.py"],
             cwd=str(HUB_ROOT),
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         ui_proc.wait()
     except KeyboardInterrupt:
         print("\n  正在停止所有服务...")
-        if ui_proc.poll() is None:
+        if ui_proc is not None and ui_proc.poll() is None:
             ui_proc.terminate()
 
     # 清理后台进程
@@ -279,7 +305,7 @@ def cmd_status_all(args):
     print("\n  端口状态:")
     import socket
     ports = {
-        7860: "Hub Web UI",
+        80: "Hub Dashboard Web UI",
         7861: "AKO_chat",
         8000: "AKO_knowledge API",
         8501: "image_analyzer Streamlit",
@@ -375,7 +401,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_kb.set_defaults(func=cmd_knowledge)
 
     # ui
-    p_ui = sub.add_parser("ui", help="启动 Hub Gradio Web UI")
+    p_ui = sub.add_parser("ui", help="启动 Hub Dashboard Web UI（端口 80）")
     p_ui.set_defaults(func=cmd_ui)
 
     # launch

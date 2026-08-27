@@ -45,18 +45,24 @@ CREATE TABLE IF NOT EXISTS file_registry (
     sync_verified_at TEXT
 );
 
--- 任务流水表
+-- 任务流水表（复用为"人工工单 + 执行流水"单表，status 扩展 draft/deploy_wait）
 CREATE TABLE IF NOT EXISTS task_queue (
     task_id TEXT PRIMARY KEY,
     workflow_id TEXT NOT NULL,
     trigger_agent TEXT,
     trigger_type TEXT DEFAULT 'manual',
     payload TEXT,
-    status TEXT NOT NULL CHECK(status IN ('pending','running','done','failed','cancelled')),
+    status TEXT NOT NULL CHECK(status IN ('pending','running','done','failed','cancelled','draft','deploy_wait')),
     output_file_ids TEXT,
     error_log TEXT,
     started_at TEXT,
-    finished_at TEXT
+    finished_at TEXT,
+    display_cap TEXT,
+    priority TEXT NOT NULL DEFAULT 'normal',
+    deadline TEXT,
+    sla_seconds INTEGER,
+    submitter TEXT DEFAULT 'external',
+    raw_payload TEXT
 );
 
 -- 索引
@@ -111,6 +117,83 @@ class HubDB:
             self.connect()
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
+        # 迁移旧版 task_queue（扩展 status 与工单字段）
+        self._migrate_task_queue()
+
+    def _migrate_task_queue(self) -> None:
+        """
+        将旧版 task_queue 升级为工单兼容表（幂等）。
+
+        1. 补全新增列（display_cap/priority/deadline/sla_seconds/submitter/raw_payload）。
+        2. 若旧表 status 的 CHECK 不含 deploy_wait，则重建表以更新约束（SQLite 不能直接修改 CHECK）。
+        """
+        if self._conn is None:
+            self.connect()
+
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='task_queue'"
+        ).fetchone()
+        if row is None or not row["sql"]:
+            return  # 表不存在，SCHEMA_SQL 已按新结构创建
+
+        # 1) 补全新增列（幂等）
+        add_cols = [
+            ("display_cap", "TEXT"),
+            ("priority", "TEXT NOT NULL DEFAULT 'normal'"),
+            ("deadline", "TEXT"),
+            ("sla_seconds", "INTEGER"),
+            ("submitter", "TEXT DEFAULT 'external'"),
+            ("raw_payload", "TEXT"),
+        ]
+        existing_cols = {
+            c[1] for c in self._conn.execute("PRAGMA table_info(task_queue)").fetchall()
+        }
+        for col, ddl in add_cols:
+            if col not in existing_cols:
+                self._conn.execute(f"ALTER TABLE task_queue ADD COLUMN {col} {ddl}")
+        self._conn.commit()
+
+        # 2) 若 CHECK 约束缺少 deploy_wait，则重建表
+        if "deploy_wait" in row["sql"]:
+            return
+
+        self._conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            self._conn.executescript("""
+                ALTER TABLE task_queue RENAME TO task_queue_old;
+                CREATE TABLE task_queue (
+                    task_id TEXT PRIMARY KEY,
+                    workflow_id TEXT NOT NULL,
+                    trigger_agent TEXT,
+                    trigger_type TEXT DEFAULT 'manual',
+                    payload TEXT,
+                    status TEXT NOT NULL CHECK(status IN ('pending','running','done','failed','cancelled','draft','deploy_wait')),
+                    output_file_ids TEXT,
+                    error_log TEXT,
+                    started_at TEXT,
+                    finished_at TEXT,
+                    display_cap TEXT,
+                    priority TEXT NOT NULL DEFAULT 'normal',
+                    deadline TEXT,
+                    sla_seconds INTEGER,
+                    submitter TEXT DEFAULT 'external',
+                    raw_payload TEXT
+                );
+                INSERT INTO task_queue
+                    (task_id, workflow_id, trigger_agent, trigger_type, payload, status,
+                     output_file_ids, error_log, started_at, finished_at,
+                     display_cap, priority, deadline, sla_seconds, submitter, raw_payload)
+                SELECT
+                    task_id, workflow_id, trigger_agent, trigger_type, payload, status,
+                    output_file_ids, error_log, started_at, finished_at,
+                    display_cap, priority, deadline, sla_seconds, submitter, raw_payload
+                FROM task_queue_old;
+                DROP TABLE task_queue_old;
+                CREATE INDEX IF NOT EXISTS idx_task_status ON task_queue(status);
+            """)
+            self._conn.commit()
+        finally:
+            self._conn.execute("PRAGMA foreign_keys=ON")
 
     def close(self) -> None:
         """关闭连接，WAL 日志合并到主库。"""

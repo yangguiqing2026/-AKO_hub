@@ -18,6 +18,23 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 
+# ── 常量 ───────────────────────────────────────────────────────────
+DB_TIMEOUT: float = 5.0        # SQLite 写入超时（秒）
+
+# ── 默认 Agent 清单（看板基础注册表） ────────────────────────────
+# D:/AKO 下已存在但尚未内置心跳上报的 Agent，先登记进 agents_registry，
+# 使其在「健康巡检 / 总览看板」中可见（未上报心跳时为离线状态）。
+# 一旦这些 Agent 上报心跳，心跳字段会被正常更新为在线。
+SEED_AGENTS: list[tuple[str, str, str]] = [
+    # (agent_id, display_name, agent_type)
+    ("AKO_client_profile_agent", "客户画像 Agent", "business"),
+    ("AKO_clinic_agent", "集群健康诊疗 Agent", "ops"),
+    ("AKO_kb_agent", "知识库检索 Agent", "base"),
+    ("AKO_knowledge", "知识库服务", "base"),
+    ("AKO_media_agent", "内容营销 Agent", "design"),
+    ("AKO_review_agent", "代码审查 Agent", "ops"),
+    ("AKO_file_tag_manager", "文件标签管理 Agent", "base"),
+]
 
 
 def _get_db(db_path: str = "ako_hub.db") -> sqlite3.Connection:
@@ -27,10 +44,6 @@ def _get_db(db_path: str = "ako_hub.db") -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
-
-
-# ── 常量 ───────────────────────────────────────────────────────────
-DB_TIMEOUT: float = 5.0        # SQLite 写入超时（秒）
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -61,6 +74,22 @@ def _upsert_agent_registry(conn: sqlite3.Connection, agent_id: str, data: Dict[s
                 data.get("display_name", agent_id),
                 data.get("agent_type", "unknown"),
                 30,
+            ),
+        )
+    else:
+        # 已有记录时，若上报带 display_name/agent_type，则补全展示信息
+        conn.execute(
+            """
+            UPDATE agents_registry
+            SET display_name = CASE WHEN display_name = '' OR display_name = agent_id
+                                    THEN ? ELSE display_name END,
+                agent_type = CASE WHEN agent_type = 'unknown' THEN ? ELSE agent_type END
+            WHERE agent_id = ?
+            """,
+            (
+                data.get("display_name", agent_id),
+                data.get("agent_type", "unknown"),
+                agent_id,
             ),
         )
 
@@ -138,6 +167,32 @@ def receive_heartbeat_data(data: Dict[str, Any], db_path: str = "ako_hub.db") ->
         return {"status": "error", "message": f"{type(e).__name__}: {e}"}
 
 
+def seed_agents_registry(db_path: str = "ako_hub.db") -> None:
+    """
+    将 SEED_AGENTS 默认清单幂等地写入 agents_registry（INSERT OR IGNORE）。
+
+    用于让 D:/AKO 下尚未上报心跳的 Agent 也出现在看板中（离线状态可见）。
+    """
+    try:
+        conn = _get_db(db_path)
+        try:
+            for agent_id, display_name, agent_type in SEED_AGENTS:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO agents_registry
+                        (agent_id, display_name, agent_type, heartbeat_interval)
+                    VALUES (?, ?, ?, 30)
+                    """,
+                    (agent_id, display_name, agent_type),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        # 看板初始化阶段，种子写入失败不应阻断服务启动
+        pass
+
+
 def get_agents_status(db_path: str = "ako_hub.db", offline_only: bool = False) -> Dict[str, Any]:
     """
     查询所有 Agent 的当前状态。
@@ -156,7 +211,8 @@ def get_agents_status(db_path: str = "ako_hub.db", offline_only: bool = False) -
                 SELECT
                     a.agent_id, a.display_name, a.agent_type,
                     h.timestamp AS last_heartbeat,
-                    h.status, h.cpu_percent, h.memory_mb,
+                    h.status, h.cpu_percent, h.memory_mb, h.disk_percent,
+                    h.response_time_ms,
                     h.task_total, h.task_success, h.task_failed,
                     h.last_task, h.last_task_status,
                     CAST((strftime('%s','now') - strftime('%s', h.timestamp)) AS INTEGER) AS seconds_ago
@@ -173,7 +229,10 @@ def get_agents_status(db_path: str = "ako_hub.db", offline_only: bool = False) -
             agents = []
             for row in cur.fetchall():
                 d = dict(row)
-                d["online"] = (d["seconds_ago"] or 999) < 90
+                seconds_ago = d.get("seconds_ago")
+                d["online"] = (seconds_ago if seconds_ago is not None else 999) < 90
+                # 展示名回退到 agent_id，避免空名
+                d["display_name"] = d.get("display_name") or d.get("agent_id") or ""
                 agents.append(d)
         finally:
             conn.close()

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
-from ako_geo.config import LLM_ROUTE_OUTLINE, PLATFORMS
+from ako_geo.config import LLM_ROUTE_OUTLINE, PLATFORMS, LLM_MAX_TOKENS
 
 logger = logging.getLogger("ako_geo")
 
@@ -122,6 +122,7 @@ def _call_llm_outline(state: Dict[str, Any], prompt: str) -> str:
                 model=LLM_ROUTE_OUTLINE["primary"],
                 prompt=prompt,
                 fallback_chain=LLM_ROUTE_OUTLINE["fallback"],
+                max_tokens=LLM_MAX_TOKENS,
             )
             return response.get("content", "")
         except Exception as e:

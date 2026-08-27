@@ -1,4 +1,4 @@
-sync_root: D:/AKO_Hub
+sync_root: D:/AKO/AKO_hub
 meta_db: hub_meta.db
 chroma_root: ./chroma_db
 file_root: ./file_bus
@@ -26,6 +26,7 @@ spoke_sources:
   ako_business_agent: D:/AKO_business_agent
   ako_kb_agent: D:/AKO_kb_agent
   ako_workflow: D:/AKO_workflow
+  AKO_law_agent: D:/AKO/AKO_law_agent
 kb_collections:
   taoli_general_arch: ako_taoli_general_arch
   taoli_fire_codes: ako_taoli_fire_codes_arch

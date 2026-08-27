@@ -7,12 +7,32 @@ config_loader.py — AKO_hub 配置加载器。
 from __future__ import annotations
 
 import logging
+import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
 
 logger = logging.getLogger("AKO_hub.config")
+
+# ${VAR:default} 占位符展开（如 ${REGISTRY_ENDPOINT:http://localhost:5024}）
+_ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]*))?\}")
+
+
+def _expand_env(value: Any) -> Any:
+    """递归展开配置值中的 ${VAR:default} 环境变量占位符。"""
+    if isinstance(value, str):
+        def _repl(match: "re.Match[str]") -> str:
+            var = match.group(1)
+            default = match.group(2) if match.group(2) is not None else ""
+            return os.environ.get(var, default)
+        return _ENV_PATTERN.sub(_repl, value)
+    if isinstance(value, dict):
+        return {k: _expand_env(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand_env(v) for v in value]
+    return value
 
 
 class HubConfig:
@@ -157,6 +177,9 @@ def load_config(config_path: str = "config/AKO_hub_config.yaml") -> HubConfig:
 
     if not isinstance(raw, dict):
         raise ValueError(f"配置文件格式错误，期望 dict，实际 {type(raw).__name__}")
+
+    # 展开 ${VAR:default} 环境变量占位符（如 ${REGISTRY_ENDPOINT:...}）
+    raw = _expand_env(raw)
 
     cfg = HubConfig(raw, config_path=str(path))
     logger.info(f"配置加载完成: agent_id={cfg.agent_id}, strategy={cfg.routing_strategy}")

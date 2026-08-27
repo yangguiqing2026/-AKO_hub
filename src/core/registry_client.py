@@ -85,10 +85,10 @@ class RegistryClient:
     def _load_local_registry(self) -> Dict[str, Dict[str, Any]]:
         """从本地 registry/workflows.py 加载静态注册表。"""
         try:
-            from registry.workflows import SPOKE_REGISTRY, list_all_spokes
+            from registry.workflows import list_spokes_enriched
 
             agents: Dict[str, Dict[str, Any]] = {}
-            for spoke in list_all_spokes():
+            for spoke in list_spokes_enriched():
                 agent_id = spoke["workflow_id"]
                 agents[agent_id] = {
                     "agent_id": agent_id,
@@ -102,6 +102,10 @@ class RegistryClient:
                     "invoke_mode": spoke.get("invoke_mode", "importlib"),
                     "required_kb_ids": spoke.get("required_kb_ids", []),
                     "status": spoke.get("status", "registered"),
+                    # 三维分类派生字段（单一数据源 registry/taxonomy.py）
+                    "domain": spoke.get("domain", ""),
+                    "function": spoke.get("function", ""),
+                    "category": spoke.get("category", ""),
                     "registered_at": datetime.now(timezone.utc).isoformat(),
                     "last_heartbeat": None,
                     "load": 0,

@@ -120,7 +120,7 @@ def test_workflow_caller_lock():
 
         # machine_01 调用 workflow_caller，应失败
         state = MasterState(
-            task_id="T-LOCK-002", target_workflow="wf_ako_architect",
+            task_id="T-LOCK-002", target_workflow="AKO_architect_agent",
             output_dir="taoli/test", input_payload={"project": "陶粒"},
             required_kb_ids=[], generated_files=[], retry_count=0, max_retry=3,
         )

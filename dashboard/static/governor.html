@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AKO_agent_总控台</title>
+<style>
+:root {
+  --deep-brown: #1e1f1c;
+  --near-black: #1e1f1c;
+  --deep-brown-card: #2d2e29;
+  --cream-gold: #c0c0c0;
+  --molten-gold: #e5a020;
+  --amber-gold: #a0a0a0;
+  --warm-orange: #e5a020;
+  --soft-green: #7ec699;
+  --dark-red: #e05252;
+  --warm-gray: #808080;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--near-black);
+  color: var(--cream-gold);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶部指挥栏 */
+.command-bar {
+  height: 64px;
+  background: var(--deep-brown);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid color-mix(in srgb, var(--deep-brown) 90%, var(--molten-gold) 10%);
+  flex-shrink: 0;
+}
+.command-bar .logo { font-weight: 700; font-size: 16px; letter-spacing: 1px; color: var(--cream-gold); }
+.command-bar .metrics { display: flex; gap: 20px; }
+.metric-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--deep-brown-card);
+  border-radius: 20px;
+  font-size: 13px;
+  border: 1px solid color-mix(in srgb, var(--deep-brown-card) 90%, var(--molten-gold) 10%);
+}
+.metric-pill .value { font-weight: 700; color: var(--molten-gold); font-size: 15px; }
+.metric-pill .label { color: var(--amber-gold); font-size: 11px; }
+.metric-pill.alert .value { color: var(--warm-orange); animation: pulse 1.5s infinite; }
+.metric-pill.danger .value { color: var(--dark-red); animation: pulse 1.2s infinite; }
+
+.broadcast-btn {
+  padding: 8px 18px;
+  background: var(--molten-gold);
+  color: var(--deep-brown);
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.broadcast-btn:hover { background: var(--cream-gold); }
+
+/* 主体 */
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 左区 — 治理决策 */
+.left-gov {
+  width: 320px;
+  background: var(--deep-brown);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid color-mix(in srgb, var(--deep-brown) 85%, var(--molten-gold) 15%);
+}
+.gov-section { border-bottom: 1px solid color-mix(in srgb, var(--deep-brown) 90%, var(--molten-gold) 10%); }
+.gov-section-title {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--molten-gold);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.gov-section-title.danger { color: var(--dark-red); }
+
+/* 授权卡片 */
+.auth-card {
+  background: var(--deep-brown-card);
+  border: 1px solid color-mix(in srgb, var(--deep-brown-card) 90%, var(--molten-gold) 10%);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 6px 12px;
+  font-size: 12px;
+  position: relative;
+}
+.auth-card.urgent {
+  border: 2px solid var(--warm-orange);
+  animation: borderPulse 2s infinite;
+}
+@keyframes borderPulse {
+  0%, 100% { border-color: color-mix(in srgb, var(--warm-orange) 60%, transparent); }
+  50% { border-color: var(--warm-orange); }
+}
+.auth-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.auth-card-class {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.auth-card-class.legal { background: color-mix(in srgb, var(--molten-gold) 20%, transparent); color: var(--molten-gold); }
+.auth-card-class.maintenance { background: color-mix(in srgb, var(--warm-orange) 20%, transparent); color: var(--warm-orange); }
+.auth-card-title { font-weight: 600; color: var(--cream-gold); }
+.auth-card-meta { color: var(--amber-gold); margin: 4px 0; line-height: 1.5; }
+.auth-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.gov-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.gov-btn-approve { background: var(--soft-green); color: var(--deep-brown); }
+.gov-btn-approve:hover { background: color-mix(in srgb, var(--soft-green) 80%, var(--cream-gold) 20%); }
+.gov-btn-reject { background: var(--dark-red); color: var(--cream-gold); }
+.gov-btn-reject:hover { background: color-mix(in srgb, var(--dark-red) 80%, var(--cream-gold) 20%); }
+.gov-btn-detail { background: transparent; color: var(--amber-gold); border: 1px solid var(--amber-gold); }
+.gov-btn-detail:hover { background: var(--amber-gold); color: var(--deep-brown); }
+
+/* 安全事件卡片 */
+.sec-card {
+  background: var(--deep-brown-card);
+  border-left: 3px solid var(--dark-red);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  margin: 6px 12px;
+  font-size: 12px;
+}
+.sec-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dark-red);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.sec-card-body { color: var(--amber-gold); line-height: 1.5; }
+.sec-card-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+/* 中区 — 全局态势 */
+.center-gov {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--near-black);
+}
+
+/* 拓扑图 */
+.topology-panel {
+  flex: 1.2;
+  position: relative;
+  overflow: hidden;
+}
+.topology-title {
+  position: absolute;
+  top: 12px; left: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--molten-gold);
+  z-index: 5;
+}
+.topology-legend {
+  position: absolute;
+  top: 12px; right: 16px;
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--amber-gold);
+  z-index: 5;
+}
+.topology-legend span { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+.legend-dot.online { background: var(--soft-green); }
+.legend-dot.overload { background: var(--molten-gold); }
+.legend-dot.offline { background: var(--dark-red); }
+
+#topology-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* 热力图 */
+.heatmap-panel {
+  flex: 0.8;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.heatmap-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--molten-gold);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  flex: 1;
+}
+.heatmap-cell {
+  background: var(--deep-brown-card);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.heatmap-cell:hover { border-color: var(--molten-gold); transform: scale(1.05); }
+.heatmap-cell .agent-name { font-weight: 600; color: var(--cream-gold); font-size: 10px; }
+.heatmap-cell .agent-id {
+  font-size: 8px;
+  color: var(--warm-gray);
+  margin-top: 1px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.heatmap-cell .agent-load { font-size: 10px; margin-top: 2px; }
+.heatmap-cell.load-low { background: color-mix(in srgb, var(--soft-green) 30%, var(--deep-brown-card) 70%); }
+.heatmap-cell.load-low .agent-load { color: var(--soft-green); }
+.heatmap-cell.load-mid { background: color-mix(in srgb, var(--amber-gold) 30%, var(--deep-brown-card) 70%); }
+.heatmap-cell.load-mid .agent-load { color: var(--amber-gold); }
+.heatmap-cell.load-high { background: color-mix(in srgb, var(--molten-gold) 40%, var(--deep-brown-card) 60%); }
+.heatmap-cell.load-high .agent-load { color: var(--molten-gold); }
+.heatmap-cell.load-critical { background: color-mix(in srgb, var(--warm-orange) 40%, var(--deep-brown-card) 60%); }
+.heatmap-cell.load-critical .agent-load { color: var(--warm-orange); }
+.heatmap-cell.load-max { background: color-mix(in srgb, var(--dark-red) 40%, var(--deep-brown-card) 60%); }
+.heatmap-cell.load-max .agent-load { color: var(--dark-red); }
+.heatmap-cell.offline { background: color-mix(in srgb, var(--deep-brown) 80%, var(--deep-brown-card) 20%); opacity: 0.5; }
+.heatmap-cell.offline .agent-load { color: var(--warm-gray); }
+
+/* 审计面板 */
+.audit-panel {
+  padding: 10px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--near-black) 90%, var(--molten-gold) 10%);
+}
+.audit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--molten-gold);
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.audit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--deep-brown) 50%, transparent);
+}
+.audit-row .time { color: var(--amber-gold); width: 60px; }
+.audit-row .chain { color: var(--cream-gold); flex: 1; }
+.audit-row .duration { color: var(--amber-gold); width: 50px; text-align: right; }
+.audit-row .result { width: 24px; text-align: center; }
+
+/* 底部状态区 */
+.status-footer {
+  height: 48px;
+  background: var(--deep-brown);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--deep-brown) 90%, var(--molten-gold) 10%);
+  flex-shrink: 0;
+}
+.status-footer .hub-nodes { display: flex; gap: 16px; }
+.status-footer .hub-node { display: flex; align-items: center; gap: 4px; }
+.status-footer .events { color: var(--amber-gold); }
+.status-footer .law-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.law-item { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.law-item.done { color: var(--soft-green); }
+.law-item.draft { color: var(--molten-gold); }
+.law-item.pending { color: var(--warm-orange); }
+
+/* 紧急干预面板 */
+.emergency-panel {
+  position: fixed;
+  bottom: 48px;
+  left: 320px;
+  right: 0;
+  height: 0;
+  background: var(--deep-brown-card);
+  border-top: 2px solid var(--warm-orange);
+  overflow: hidden;
+  transition: height 0.3s ease;
+  z-index: 100;
+}
+.emergency-panel.open { height: 320px; }
+.emergency-header {
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--warm-orange);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.emergency-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 0 20px;
+}
+.emergency-action {
+  background: var(--deep-brown);
+  border: 1px solid color-mix(in srgb, var(--deep-brown) 90%, var(--warm-orange) 10%);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.emergency-action:hover { border-color: var(--warm-orange); }
+.emergency-action .level { font-size: 18px; margin-bottom: 4px; }
+.emergency-action .name { font-size: 12px; color: var(--cream-gold); font-weight: 600; }
+.emergency-action .desc { font-size: 10px; color: var(--amber-gold); margin-top: 4px; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--amber-gold); border-radius: 2px; }
+.logo-img { height: 22px; width: auto; vertical-align: middle; margin-right: 8px; border-radius: 3px; }
+
+/* 登录鉴权遮罩 */
+#login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 23, 21, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.login-box {
+  background: var(--deep-brown-card);
+  border: 2px solid var(--molten-gold);
+  border-radius: 8px;
+  padding: 40px 36px;
+  width: 360px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.login-logo { font-size: 20px; font-weight: 700; color: var(--cream-gold); letter-spacing: 1px; margin-bottom: 6px; }
+.login-title { font-size: 14px; color: var(--molten-gold); margin-bottom: 4px; }
+.login-sub { font-size: 12px; color: var(--warm-gray); margin-bottom: 18px; }
+#fingerprint-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 22px;
+  letter-spacing: 8px;
+  text-align: center;
+  border: 1px solid var(--molten-gold);
+  border-radius: 4px;
+  background: var(--deep-brown);
+  color: var(--cream-gold);
+  outline: none;
+}
+#fingerprint-input:focus { border-color: var(--molten-gold); box-shadow: 0 0 0 3px rgba(229, 160, 32, 0.2); }
+.login-error { min-height: 18px; font-size: 12px; color: var(--dark-red); margin-top: 10px; }
+.login-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 11px;
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--molten-gold);
+  color: var(--deep-brown);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.login-btn:hover { background: #d18a1a; }
+
+/* 心跳脉冲动画 */
+.hb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 3px;
+}
+.hb-dot.hb-on { background: var(--soft-green); animation: heartbeat 1.4s ease-in-out infinite; }
+.hb-dot.hb-off { background: var(--warm-gray); }
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  15% { transform: scale(1.35); opacity: 0.6; }
+  30% { transform: scale(1); opacity: 1; }
+  45% { transform: scale(1.2); opacity: 0.8; }
+  60% { transform: scale(1); opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- 登录鉴权遮罩 -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">AKO_agent_总控台</div>
+    <div class="login-title">治理身份验证</div>
+    <div class="login-sub">请输入 6 位数字指纹后进入</div>
+    <input id="fingerprint-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="off" />
+    <div id="login-error" class="login-error"></div>
+    <button id="login-btn" class="login-btn">进入总控台</button>
+  </div>
+</div>
+
+<!-- 顶部指挥栏 -->
+<div class="command-bar">
+  <div class="logo"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO_agent_总控台</div>
+  <div class="metrics">
+    <div class="metric-pill">
+      <span class="label">系统</span>
+      <span class="value" id="m-sys">🟢 正常</span>
+    </div>
+    <div class="metric-pill alert">
+      <span class="label">待授权</span>
+      <span class="value" id="m-auth">3</span>
+    </div>
+    <div class="metric-pill">
+      <span class="label">安全事件</span>
+      <span class="value" id="m-sec">0</span>
+    </div>
+    <div class="metric-pill alert">
+      <span class="label">待签章</span>
+      <span class="value" id="m-sign">1</span>
+    </div>
+    <div class="metric-pill">
+      <span class="label">运行</span>
+      <span class="value" id="m-uptime">12d</span>
+    </div>
+  </div>
+  <button class="broadcast-btn" onclick="toggleEmergency()">🎙️ 全局广播</button>
+</div>
+
+<!-- 主体 -->
+<div class="main">
+
+  <!-- 左区：治理决策 -->
+  <div class="left-gov">
+
+    <!-- 授权审批队列 -->
+    <div class="gov-section">
+      <div class="gov-section-title">
+        <span>⚖️ 授权审批队列 (3)</span>
+        <span style="font-size:11px;color:var(--amber-gold);">按紧急度排序</span>
+      </div>
+
+      <div class="auth-card urgent">
+        <div class="auth-card-header">
+          <span class="auth-card-class maintenance">🔧 维护层</span>
+          <span style="color:var(--warm-orange);font-size:10px;">🔥 紧急</span>
+        </div>
+        <div class="auth-card-title">AKO_netwatch_agent — 紧急巡检</div>
+        <div class="auth-card-meta">
+          请求: 系统级故障检测<br>
+          提交: 2026-08-24 06:35:00<br>
+          时限: 15min 内响应
+        </div>
+        <div class="auth-card-actions">
+          <button class="gov-btn gov-btn-approve">批准</button>
+          <button class="gov-btn gov-btn-reject">拒绝</button>
+          <button class="gov-btn gov-btn-detail">详情</button>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-card-header">
+          <span class="auth-card-class legal">⚖️ 法律层</span>
+        </div>
+        <div class="auth-card-title">AKO_law_agent — 起草修正案</div>
+        <div class="auth-card-meta">
+          请求: 起草《生产庭法》修正案 v1.2.0<br>
+          基础: AKO_Production_Law_v1.1.0<br>
+          提交: 2026-08-24 06:40:00<br>
+          时限: 48h 内完成
+        </div>
+        <div class="auth-card-actions">
+          <button class="gov-btn gov-btn-approve">批准</button>
+          <button class="gov-btn gov-btn-reject">拒绝</button>
+          <button class="gov-btn gov-btn-detail">详情</button>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-card-header">
+          <span class="auth-card-class legal">⚖️ 法律层</span>
+        </div>
+        <div class="auth-card-title">AKO_law_agent — 起草触发程序法</div>
+        <div class="auth-card-meta">
+          请求: 起草《触发程序法》v1.0.0<br>
+          提交: 2026-08-24 06:42:00<br>
+          时限: 48h 内完成
+        </div>
+        <div class="auth-card-actions">
+          <button class="gov-btn gov-btn-approve">批准</button>
+          <button class="gov-btn gov-btn-reject">拒绝</button>
+          <button class="gov-btn gov-btn-detail">详情</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 安全事件中心 -->
+    <div class="gov-section">
+      <div class="gov-section-title danger">
+        <span id="sec-title">🚨 安全事件中心 (0)</span>
+        <span style="font-size:11px;color:var(--soft-green);">当前无异常</span>
+      </div>
+      <div id="sec-body" style="padding:12px 16px;font-size:12px;color:var(--amber-gold);">
+        系统运行正常，最近 24h 内无安全事件。
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 中区：全局态势 -->
+  <div class="center-gov">
+
+    <!-- 拓扑图 -->
+    <div class="topology-panel">
+      <div class="topology-title">全局工单流转拓扑图</div>
+      <div class="topology-legend">
+        <span><span class="legend-dot online"></span> 在线</span>
+        <span><span class="legend-dot overload"></span> 高载</span>
+        <span><span class="legend-dot offline"></span> 离线</span>
+        <span>➡️ 工单流向</span>
+      </div>
+      <canvas id="topology-canvas"></canvas>
+    </div>
+
+    <!-- 热力图 -->
+    <div class="heatmap-panel">
+      <div class="heatmap-title">
+        <span>Agent 负载热力图</span>
+        <span style="font-size:11px;color:var(--amber-gold);">悬停查看详情</span>
+      </div>
+      <div class="heatmap-grid" id="heatmap-grid"></div>
+    </div>
+
+    <!-- 审计面板 -->
+    <div class="audit-panel">
+      <div class="audit-header" onclick="toggleAudit()">
+        <span>📜 调用链审计</span>
+        <span id="audit-toggle">▼ 展开</span>
+      </div>
+      <div id="audit-content">
+        <div class="audit-row">
+          <span class="time">06:53</span>
+          <span class="chain">quote → render</span>
+          <span class="duration">2.3s</span>
+          <span class="result" style="color:var(--soft-green);">✅</span>
+        </div>
+        <div class="audit-row">
+          <span class="time">06:52</span>
+          <span class="chain">audit → quality</span>
+          <span class="duration">5.1s</span>
+          <span class="result" style="color:var(--soft-green);">✅</span>
+        </div>
+        <div class="audit-row">
+          <span class="time">06:52</span>
+          <span class="chain">quote → audit</span>
+          <span class="duration">1.8s</span>
+          <span class="result" style="color:var(--soft-green);">✅</span>
+        </div>
+        <div class="audit-row">
+          <span class="time">06:51</span>
+          <span class="chain">layout → render</span>
+          <span class="duration">45.2s</span>
+          <span class="result" style="color:var(--warm-orange);">⚠️</span>
+        </div>
+        <div class="audit-row">
+          <span class="time">06:50</span>
+          <span class="chain">quote → law</span>
+          <span class="duration">0.1s</span>
+          <span class="result" style="color:var(--dark-red);">❌</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- 底部状态区 -->
+<div class="status-footer">
+  <div class="hub-nodes" id="hub-nodes">
+    <span class="hub-node">Leader <span style="color:var(--soft-green);">🟢</span></span>
+    <span class="hub-node">worker-01 <span style="color:var(--soft-green);">🟢</span></span>
+    <span class="hub-node">worker-02 <span style="color:var(--molten-gold);">🟡</span></span>
+    <span class="hub-node">witness-01 <span style="color:var(--soft-green);">🟢</span></span>
+  </div>
+  <div class="events" id="footer-events">
+    最近: 06:53 quote完成WO-001 │ 06:52 授权通过AUTH-003
+  </div>
+  <div class="law-progress" id="law-progress">
+    <span style="color:var(--amber-gold);font-size:11px;">立法进度:</span>
+    <span class="law-item done">宪法✅</span>
+    <span class="law-item done">调度法✅</span>
+    <span class="law-item draft">触发法⏳75%</span>
+    <span class="law-item pending">熔断法⏳30%</span>
+  </div>
+</div>
+
+<!-- 紧急干预面板 -->
+<div class="emergency-panel" id="emergencyPanel">
+  <div class="emergency-header">
+    <span>🚨 紧急干预面板</span>
+    <span style="cursor:pointer;font-size:18px;" onclick="toggleEmergency()">✕</span>
+  </div>
+  <div class="emergency-actions">
+    <div class="emergency-action">
+      <div class="level">🟡</div>
+      <div class="name">手动触发维护</div>
+      <div class="desc">二级确认</div>
+    </div>
+    <div class="emergency-action">
+      <div class="level">🟠</div>
+      <div class="name">切换 Leader</div>
+      <div class="desc">三级确认</div>
+    </div>
+    <div class="emergency-action">
+      <div class="level">🟠</div>
+      <div class="name">下线 Worker</div>
+      <div class="desc">二级确认</div>
+    </div>
+    <div class="emergency-action">
+      <div class="level">🔴</div>
+      <div class="name">全局熔断</div>
+      <div class="desc">四级确认</div>
+    </div>
+    <div class="emergency-action">
+      <div class="level">🟡</div>
+      <div class="name">恢复路由</div>
+      <div class="desc">二级确认</div>
+    </div>
+    <div class="emergency-action">
+      <div class="level">🟠</div>
+      <div class="name">批量封禁</div>
+      <div class="desc">三级确认</div>
+    </div>
+    <div class="emergency-action">
+      <div class="level">🔴</div>
+      <div class="name">回滚立法</div>
+      <div class="desc">四级确认</div>
+    </div>
+    <div class="emergency-action">
+      <div class="level">🟡</div>
+      <div class="name">重启 Hub</div>
+      <div class="desc">三级确认</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 拓扑图绘制
+function drawTopology() {
+  const canvas = document.getElementById('topology-canvas');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const agents = window.LIVE_AGENTS || [];
+  if (!agents.length) {
+    ctx.fillStyle = '#808080';
+    ctx.font = '12px "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('暂无 Agent 数据', w / 2, h / 2);
+    requestAnimationFrame(drawTopology);
+    return;
+  }
+
+  const cx = w / 2, cy = h / 2;
+  const hubR = 22;
+  const now = Date.now() / 1000;
+
+  // 分层：运维层（内圈）+ 工作层（外圈）
+  const OPS_TYPES = ['base', 'ops', 'security', 'maintenance', 'legal', 'unknown'];
+  const opsAgents = [];
+  const workAgents = [];
+  agents.forEach(function (a) {
+    if (a.agent_id === 'AKO_hub') return;  // hub 是中心节点
+    if (OPS_TYPES.indexOf(a.agent_type) >= 0) opsAgents.push(a);
+    else workAgents.push(a);
+  });
+
+  const ringOuter = Math.min(w, h) / 2 - 55;
+  const ringInner = ringOuter - 85;
+
+  function drawNode(a, x, y) {
+    const online = a.online;
+    const cpu = a.cpu_percent;
+    const overload = online && cpu != null && cpu > 80;
+    const t = (a.agent_type || '') + '';
+    const sqType = t === 'legal' || t === 'maintenance' || t === 'security';
+
+    let fill, stroke;
+    if (!online) { fill = '#3D3328'; stroke = '#808080'; }
+    else if (overload) { fill = '#B99B5F'; stroke = '#EBDAB9'; }
+    else { fill = '#7A9E7E'; stroke = '#EBDAB9'; }
+
+    const size = 12;
+    if (sqType) {
+      ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+      ctx.fillRect(x - size, y - size, size * 2, size * 2);
+      ctx.strokeRect(x - size, y - size, size * 2, size * 2);
+    } else {
+      ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fillStyle = fill; ctx.fill();
+      ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+
+    if (online) {
+      const pulse = 1 + 0.35 * Math.sin(now * 3);
+      ctx.beginPath();
+      ctx.arc(x, y, size + 3 + pulse * 2.5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(126,198,153,0.55)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    const name = a.name_zh || a.name || a.agent_id || '?';
+    ctx.fillStyle = online ? '#EBDAB9' : '#808080';
+    ctx.font = '9px "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, x, y + size + 11);
+  }
+
+  function drawGroup(list, ringR, label) {
+    const n = list.length;
+    if (!n) return;
+    // 连线
+    list.forEach((a, i) => {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+      const x = cx + ringR * Math.cos(angle);
+      const y = cy + ringR * Math.sin(angle);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = a.online ? 'rgba(126,198,153,0.30)' : 'rgba(128,128,128,0.12)';
+      ctx.lineWidth = a.online ? 1.5 : 1;
+      ctx.stroke();
+    });
+    // 节点
+    list.forEach((a, i) => {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+      const x = cx + ringR * Math.cos(angle);
+      const y = cy + ringR * Math.sin(angle);
+      drawNode(a, x, y);
+    });
+    // 环形标签
+    ctx.fillStyle = 'rgba(160,160,160,0.6)';
+    ctx.font = '10px "PingFang SC", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(label, cx + ringR + 8, cy);
+  }
+
+  drawGroup(opsAgents, ringInner, '运维层');
+  drawGroup(workAgents, ringOuter, '工作层');
+
+  // Hub 中心节点
+  ctx.beginPath();
+  ctx.arc(cx, cy, hubR, 0, Math.PI * 2);
+  ctx.fillStyle = '#B99B5F';
+  ctx.fill();
+  ctx.strokeStyle = '#EBDAB9';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#1e1f1c';
+  ctx.font = 'bold 12px "PingFang SC", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('HUB', cx, cy + 4);
+
+  requestAnimationFrame(drawTopology);
+}
+
+// 审计折叠
+function toggleAudit() {
+  const content = document.getElementById('audit-content');
+  const toggle = document.getElementById('audit-toggle');
+  if(content.style.display === 'none') {
+    content.style.display = 'block';
+    toggle.textContent = '▼ 展开';
+  } else {
+    content.style.display = 'none';
+    toggle.textContent = '▶ 折叠';
+  }
+}
+
+// 紧急面板
+function toggleEmergency() {
+  const panel = document.getElementById('emergencyPanel');
+  panel.classList.toggle('open');
+}
+
+// 初始化
+drawTopology();
+</script>
+
+<script>
+(function () {
+  "use strict";
+  function $id(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function loadClass(cpu) {
+    if (cpu == null) return "offline";
+    if (cpu >= 85) return "load-critical";
+    if (cpu >= 60) return "load-high";
+    if (cpu >= 30) return "load-mid";
+    return "load-low";
+  }
+
+  function renderMetrics(o) {
+    var a = o.agents, alerts = o.alerts || [];
+    var map = { normal: "🟢 正常", degraded: "🟡 降级", down: "🔴 故障" };
+    var sys = $id("m-sys");
+    if (sys) sys.textContent = (map[o.system_status] || "⚪ 未知") + " · " + (a.online + a.overload) + "/" + a.total;
+    var sec = $id("m-sec");
+    if (sec) sec.textContent = alerts.length;
+    var pill = sec ? sec.closest(".metric-pill") : null;
+    if (pill) { if (alerts.length) pill.classList.add("danger"); else pill.classList.remove("danger"); }
+  }
+
+  function hbAge(ts) {
+    if (!ts) return "无心跳";
+    var diff = Date.now() - new Date(ts).getTime();
+    if (diff < 60000) return "刚刚心跳";
+    if (diff < 3600000) return Math.floor(diff / 60000) + "分钟前心跳";
+    if (diff < 86400000) return Math.floor(diff / 3600000) + "小时前心跳";
+    return Math.floor(diff / 86400000) + "天前心跳";
+  }
+
+  function renderHeatmap(list) {
+    var grid = $id("heatmap-grid");
+    if (!grid) return;
+    var html = "";
+    list.forEach(function (x) {
+      var zh = x.name_zh || "";
+      var name = zh || x.name || x.agent_id || "?";
+      var online = x.online;
+      var txt = x.cpu_percent == null ? "离线" : Math.round(x.cpu_percent) + "%";
+      var tip = (zh ? zh + " · " : "") + x.agent_id + " · " + (online ? "在线" : "离线") + " · " + hbAge(x.last_heartbeat);
+      html += '<div class="heatmap-cell ' + loadClass(x.cpu_percent) + '" title="' + esc(tip) + '"><span class="agent-name">' + esc(name) + '</span><span class="agent-id">' + esc(x.agent_id) + '</span><span class="hb-dot ' + (online ? "hb-on" : "hb-off") + '"></span><span class="agent-load">' + esc(txt) + '</span></div>';
+    });
+    grid.innerHTML = html || '<div class="heatmap-cell offline"><span class="agent-name">暂无</span><span class="agent-load">—</span></div>';
+  }
+
+  function renderSecurity(o) {
+    var title = $id("sec-title"), body = $id("sec-body");
+    var alerts = o.alerts || [];
+    if (title) title.textContent = "🚨 安全事件中心 (" + alerts.length + ")";
+    if (!body) return;
+    if (!alerts.length) { body.innerHTML = "系统运行正常，最近 24h 内无安全事件。"; return; }
+    var html = "";
+    alerts.slice(0, 8).forEach(function (al) {
+      var who = al.agent_id || al.source_agent || "告警";
+      var msg = al.message || al.reason || al.detail || "";
+      html += '<div class="sec-card"><div class="sec-card-header">🚨 ' + esc(who) + '</div><div class="sec-card-body">' + esc(msg || JSON.stringify(al)) + "</div></div>";
+    });
+    body.innerHTML = html;
+  }
+
+  function renderAudit(o) {
+    var box = $id("audit-content");
+    if (!box) return;
+    var ev = o.events || {};
+    var rows = [];
+    (ev.completed || []).slice(0, 8).forEach(function (e) { rows.push({ t: ft(e), c: fc(e), ok: true }); });
+    (ev.failed || []).slice(0, 3).forEach(function (e) { rows.push({ t: ft(e), c: fc(e), ok: false }); });
+    if (!rows.length) { box.innerHTML = '<div style="padding:8px;color:var(--amber-gold);font-size:12px;">暂无调用链记录</div>'; return; }
+    var html = "";
+    rows.forEach(function (r) {
+      html += '<div class="audit-row"><span class="time">' + esc(r.t) + '</span><span class="chain">' + esc(r.c) + '</span><span class="duration"></span><span class="result" style="color:' + (r.ok ? "var(--soft-green)" : "var(--dark-red)") + ';">' + (r.ok ? "✅" : "❌") + "</span></div>";
+    });
+    box.innerHTML = html;
+  }
+  function ft(e) { var s = String(e.timestamp || e.time || e.created_at || ""); return s.length >= 16 ? s.slice(11, 16) : (s.length > 8 ? s.slice(0, 8) : s); }
+  function fc(e) { return (e.source_agent || e.agent_id || "") + " → " + (e.target_agent || ""); }
+
+  function renderHubNodes(nodes) {
+    var box = $id("hub-nodes");
+    if (!box) return;
+    var html = "";
+    (nodes || []).forEach(function (n) {
+      var dot = n.status === "online" ? "🟢" : (n.status === "degraded" ? "🟡" : "🔴");
+      var col = n.status === "online" ? "var(--soft-green)" : (n.status === "degraded" ? "var(--molten-gold)" : "var(--dark-red)");
+      html += '<span class="hub-node">' + esc(n.name) + ' <span style="color:' + col + ';">' + dot + "</span></span>";
+    });
+    box.innerHTML = html;
+  }
+
+  function renderLegislation(items) {
+    var box = $id("law-progress");
+    if (!box) return;
+    var html = '<span style="color:var(--amber-gold);font-size:11px;">立法进度:</span>';
+    (items || []).forEach(function (l) {
+      var cls = l.status === "done" ? "done" : (l.status === "draft" ? "draft" : "pending");
+      var txt = l.name + (l.status === "done" ? "✅" : "⏳" + l.progress + "%");
+      html += '<span class="law-item ' + cls + '">' + esc(txt) + "</span>";
+    });
+    box.innerHTML = html;
+  }
+
+  function applyLiveAgents(o) {
+    window.LIVE_AGENTS = (o.agents && o.agents.list) || [];
+  }
+
+  async function load() {
+    try {
+      var r = await fetch("/api/governance/overview");
+      var o = await r.json();
+      renderMetrics(o);
+      renderHeatmap(o.agents.list || []);
+      renderSecurity(o);
+      renderAudit(o);
+      renderHubNodes(o.hub_nodes || []);
+      renderLegislation(o.legislation || []);
+      applyLiveAgents(o);
+    } catch (e) {
+      var sys = $id("m-sys");
+      if (sys) sys.textContent = "🔴 连接失败";
+    }
+  }
+
+  // ── 登录鉴权（6 位数字指纹） ─────────────────────────────
+  var currentUser = "";
+
+  function showLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "flex"; }
+  function hideLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "none"; }
+
+  async function attemptLogin() {
+    var input = $id("fingerprint-input");
+    var err = $id("login-error");
+    var fp = (input ? input.value : "").trim();
+    if (!/^\d{6}$/.test(fp)) { if (err) err.textContent = "请输入 6 位数字指纹"; return; }
+    try {
+      var resp = await fetch("/api/auth/governor-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fingerprint: fp })
+      });
+      var r = await resp.json();
+      if (r.status === "ok") {
+        currentUser = r.name || "治理者";
+        hideLogin();
+        load();
+        setInterval(load, 5000);
+      } else {
+        if (err) err.textContent = r.message || "指纹不匹配";
+        if (input) { input.value = ""; input.focus(); }
+      }
+    } catch (e) {
+      if (err) err.textContent = "登录服务不可用: " + e.message;
+    }
+  }
+
+  function bindLogin() {
+    var btn = $id("login-btn"), input = $id("fingerprint-input");
+    if (btn) btn.onclick = attemptLogin;
+    if (input) {
+      input.addEventListener("keydown", function (ev) { if (ev.key === "Enter") attemptLogin(); });
+      input.focus();
+    }
+  }
+
+  bindLogin();
+  showLogin();
+})();
+</script>
+
+</body>
+</html>

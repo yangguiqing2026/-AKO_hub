@@ -1,0 +1,27 @@
+﻿{
+  "report_id": "QCR-20260814-001",
+  "agent_id": "AKO_hub",
+  "qc_standard_version": "law_v1.0",
+  "qc_round": 1,
+  "timestamp": "2026-08-21T16:46:00+08:00",
+  "overall_score": "B-",
+  "result": "PASS_WITH_FIXES",
+  "blockers": [
+    "P0 agents/__init__.py SyntaxError (em dash U+2014) - FIXED",
+    "P1 langgraph / ollama core deps missing - FIXED (installed)"
+  ],
+  "veto_items": [],
+  "recommendations": [
+    "P1 对齐知识库元数据与向量库 - 3/4 已对齐 ako_image_corpus 仍缺向量库",
+    "P2 17 虚注册 Spoke 已标记 deprecated，孤儿 WAL/SHM 已清理",
+    "P3 旧版 Agent 入口已归档至 archive/gui_deprecated/",
+    "待办: pip install FlagEmbedding gradio streamlit 以启用混合检索与 Web UI"
+  ],
+  "phases": [
+    "静态检查",
+    "依赖检查",
+    "运行时 API 测试",
+    "数据库完整性检查",
+    "注册表一致性检查"
+  ]
+}

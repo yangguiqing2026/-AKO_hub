@@ -1,7 +1,19 @@
-﻿# Environment
+# Environment
 .env
 *.pyc
 __pycache__/
 *.log
 *.db
 logs/
+# 调试与产物（2026-08-26 治理）
+_*.py
+_*.js
+_*.txt
+.coverage
+1.28.0/
+.venv/
+htmlcov/
+chroma.sqlite3
+chroma_db/*.sqlite3
+file_bus/
+geo_output/

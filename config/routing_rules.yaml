@@ -84,10 +84,10 @@ keyword_routes:
   agent_id: AKO_drawing_inspector
   confidence: 0.8
 - keyword: 识别
-  agent_id: AKO_image_analyzer
+  agent_id: AKO_image_analyzer_agent
   confidence: 0.85
 - keyword: 效果图
-  agent_id: AKO_image_analyzer
+  agent_id: AKO_image_analyzer_agent
   confidence: 0.85
 - keyword: 报告
   agent_id: AKO_reports
@@ -107,3 +107,30 @@ keyword_routes:
 - keyword: 知识
   agent_id: AKO_knowledge
   confidence: 0.8
+- keyword: 渲染
+  agent_id: AKO_architect_agent
+  confidence: 0.9
+- keyword: 结构计算
+  agent_id: AKO_architect_agent
+  confidence: 0.95
+- keyword: 方案设计
+  agent_id: AKO_architect_agent
+  confidence: 0.9
+- keyword: 建模
+  agent_id: AKO_architect_agent
+  confidence: 0.85
+- keyword: 三维
+  agent_id: AKO_architect_agent
+  confidence: 0.85
+- keyword: 法律
+  agent_id: AKO_law_agent
+  confidence: 0.95
+- keyword: 合规
+  agent_id: AKO_law_agent
+  confidence: 0.9
+- keyword: 合同
+  agent_id: AKO_law_agent
+  confidence: 0.9
+- keyword: 法务
+  agent_id: AKO_law_agent
+  confidence: 0.85

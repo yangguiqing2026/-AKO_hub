@@ -16,12 +16,13 @@ def show_help():
 AKO Hub - 统一调度平台
 =====================
 
-可用命令:
+  可用命令:
   init          - 初始化 AKO Hub (首次使用)
   status        - 查看系统状态
   run           - 运行任务 (需要参数)
   sync          - 执行同步校验
   list-files    - 列出文件
+  serve         - 启动 HTTP 层 + 心跳接收服务
   help          - 显示此帮助信息
 
 示例:
@@ -30,6 +31,7 @@ AKO Hub - 统一调度平台
   python start.py run --intent "结构计算"
   python start.py sync --project taoli
   python start.py list-files --project taoli
+  python start.py serve
     """)
 
 def main():
@@ -67,6 +69,11 @@ def main():
         from master.runner import main as runner_main
         sys.argv = [sys.argv[0], "list-files"] + sys.argv[2:]
         runner_main()
+    elif command == "serve":
+        # 启动 HTTP 层 + 心跳接收服务
+        import app as hub_app
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        hub_app.main()
     else:
         print(f"未知命令: {command}")
         show_help()

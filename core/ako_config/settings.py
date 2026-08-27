@@ -16,11 +16,13 @@ from typing import Any, Dict, List, Optional
 # ── 常量 ──────────────────────────────────────────────────────────
 
 _HUB_YAML_CANDIDATES = [
+    Path("D:/AKO/AKO_hub/config/hub.yaml"),
     Path("D:/AKO_Hub/config/hub.yaml"),
     Path("E:/AKO_Hub/config/hub.yaml"),
 ]
 
 _ENV_CANDIDATES = [
+    Path("D:/AKO/AKO_hub/.env"),
     Path("D:/AKO_Hub/.env"),
     Path("E:/AKO_Hub/.env"),
 ]
@@ -69,12 +71,12 @@ class HubPaths:
 @dataclass
 class ModelRouting:
     """LLM 模型分工路由"""
-    reasoning: str = "deepseek"          # 结构计算、造价估算
-    creative: str = "minimax"            # 概念设计、风格分析
+    reasoning: str = "openai"          # 结构计算、造价估算
+    creative: str = "openai"            # 概念设计、风格分析
     vision: str = "aliyun"               # 图像理解 (qwen-vl)
-    compliance: str = "aliyun"           # 规范校验
+    compliance: str = "openai"           # 规范校验
     embedding: str = "bge-m3"            # 统一嵌入模型 (Hub 锁定)
-    fallback: str = "deepseek"           # 通用备用
+    fallback: str = "openai"           # 通用备用
 
 
 @dataclass

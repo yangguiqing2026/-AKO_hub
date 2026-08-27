@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
-from ako_geo.config import TEMPLATES_DIR, PLATFORM_EXT, LLM_ROUTE_FORMAT_LONG, LLM_ROUTE_FORMAT_SHORT
+from ako_geo.config import TEMPLATES_DIR, PLATFORM_EXT, LLM_ROUTE_FORMAT_LONG, LLM_ROUTE_FORMAT_SHORT, LLM_MAX_TOKENS
 
 logger = logging.getLogger("ako_geo")
 
@@ -146,6 +146,7 @@ def _call_llm_format(
                 model=route["primary"],
                 prompt=prompt,
                 fallback_chain=route["fallback"],
+                max_tokens=LLM_MAX_TOKENS,
             )
             return response.get("content", "")
         except Exception as e:

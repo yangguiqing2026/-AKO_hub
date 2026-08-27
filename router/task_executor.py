@@ -36,20 +36,21 @@ DEFAULT_PYTHON: str = sys.executable     # 当前 Python 解释器
 # 子进程调用约定: {python} {entry_script} < stdin.json > stdout.json
 # 完成后写 _DONE.json 到工作目录
 SPOKE_REGISTRY: Dict[str, Dict[str, str]] = {
-    "AKO_chat":              {"entry": "agents/ako_chat_adapter.py",       "type": "script"},
-    "AKO_quote_agent":       {"entry": "agents/ako_quote_adapter.py",      "type": "script"},
-    "AKO_layout_agent":      {"entry": "agents/layout_agent.py",         "type": "script"},
-    "AKO_media_agent":       {"entry": "agents/media_agent.py",          "type": "script"},
-    "AKO_drawing_inspector": {"entry": "agents/drawing_inspector.py",    "type": "script"},
-    "AKO_image_analyzer":    {"entry": "agents/image_analyzer.py",       "type": "script"},
-    "AKO_architect_agent":   {"entry": "agents/architect_agent.py",      "type": "script"},
-    "AKO_reports":           {"entry": "agents/ako_reports_adapter.py",   "type": "script"},
-    "AKO_form_extractor":    {"entry": "agents/ako_form_extractor_adapter.py", "type": "script"},
-    "AKO_netwatch_agent":    {"entry": "agents/netwatch_agent.py",       "type": "script"},
-    "AKO_business_agent":    {"entry": "agents/ako_business_adapter.py",  "type": "script"},
-    "AKO_knowledge":         {"entry": "agents/knowledge_service.py",    "type": "script"},
-    "AKO_geo":               {"entry": "agents/geo_agent.py",           "type": "script"},
-    "AKO工作流":              {"entry": "agents/ako_workflow_adapter.py", "type": "script"},
+    "AKO_chat":                 {"entry": "agents/ako_chat_adapter.py",       "type": "script"},
+    "AKO_quote_agent":          {"entry": "agents/ako_quote_adapter.py",      "type": "script"},
+    "AKO_layout_agent":         {"entry": "agents/ako_layout_adapter.py",     "type": "script"},
+    "AKO_media_agent":          {"entry": "agents/ako_media_adapter.py",      "type": "script"},
+    "AKO_drawing_inspector":    {"entry": "agents/ako_drawing_inspector.py",  "type": "script"},
+    "AKO_image_analyzer_agent": {"entry": "agents/ako_image_analyzer.py",     "type": "script"},
+    "AKO_architect_agent":      {"entry": "agents/ako_architect_adapter.py",  "type": "script"},
+    "AKO_reports":              {"entry": "agents/ako_reports_adapter.py",    "type": "script"},
+    "AKO_form_extractor":       {"entry": "agents/ako_form_extractor_adapter.py", "type": "script"},
+    "AKO_netwatch_agent":       {"entry": "agents/ako_netwatch_adapter.py",   "type": "script"},
+    "AKO_business_agent":       {"entry": "agents/ako_business_adapter.py",   "type": "script"},
+    "AKO_knowledge":            {"entry": "agents/ako_knowledge_adapter.py",  "type": "script"},
+    "AKO_law_agent":            {"entry": "agents/ako_law_adapter.py",        "type": "script"},
+    "AKO_geo":                  {"entry": "agents/ako_geo_adapter.py",        "type": "script"},
+    "AKO工作流":                 {"entry": "agents/ako_workflow_adapter.py",  "type": "script"},
 }
 
 

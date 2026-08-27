@@ -27,7 +27,7 @@ from core.file_bus import FileBus
 def _mock_spoke_module():
     """动态创建一个 mock agent 模块，写入临时目录并加入 sys.path。"""
     tmp = Path(tempfile.mkdtemp())
-    mod_dir = tmp / "mock_agents"
+    mod_dir = tmp / "mock_struct_agents"
     mod_dir.mkdir()
 
     init_file = mod_dir / "__init__.py"
@@ -46,7 +46,7 @@ def _mock_spoke_module():
     )
 
     sys.path.insert(0, str(tmp))
-    return tmp, "mock_agents.mock_struct_agent"
+    return tmp, "mock_struct_agents.mock_struct_agent"
 
 
 def test_master_graph_full():

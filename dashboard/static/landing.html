@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AKOagent</title>
+<style>
+:root {
+  --bg-deep: #1e1f1c;
+  --bg-panel: #272822;
+  --bg-card: #2d2e29;
+  --bg-hover: #414339;
+  --text-primary: #c0c0c0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #808080;
+  --accent: #e5a020;
+  --accent-hover: #d18a1a;
+  --success: #7ec699;
+  --error: #e05252;
+  --border: #414339;
+  --logo-orange: #ffa532;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: radial-gradient(circle at 50% 30%, #2d2e29 0%, #1e1f1c 70%);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.container { text-align: center; padding: 24px; }
+.logo-img { width: 76px; height: auto; margin-bottom: 20px; }
+.brand { font-size: 32px; font-weight: 700; letter-spacing: 2px; margin-bottom: 6px; }
+.brand .accent { color: var(--accent); }
+.subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+.cards { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 230px;
+  padding: 32px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.card .icon { font-size: 40px; }
+.card .name { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.card .desc { font-size: 12px; color: var(--text-muted); }
+.footer { margin-top: 40px; font-size: 12px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="container">
+  <img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO">
+  <div class="brand">AKO<span class="accent">agent</span></div>
+  <div class="subtitle">统一调度平台 · 员工工作台 / 治理总控台</div>
+  <div class="cards">
+    <a class="card" href="/operator">
+      <span class="icon">🔧</span>
+      <span class="name">AKO_agent_工作台</span>
+      <span class="desc">员工 · 工单提交与结果查看</span>
+    </a>
+    <a class="card" href="/governor">
+      <span class="icon">🛰</span>
+      <span class="name">AKO_agent_总控台</span>
+      <span class="desc">治理 · 全局态势与授权审批</span>
+    </a>
+  </div>
+  <div class="footer">AKO_studio · Tailscale 内网</div>
+</div>
+</body>
+</html>

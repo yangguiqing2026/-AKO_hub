@@ -1,0 +1,28 @@
+# ============================================================
+# employee_access.yaml — AKO_agent_工作台 员工访问控制表
+# ============================================================
+# 职责：定义员工姓名与 6 位数字指纹的映射，供登录鉴权使用。
+# 前端 POST /api/auth/login 提交 fingerprint，后端在此表命中后放行。
+# ============================================================
+
+employees:
+  - name: 周明静
+    fingerprint: "129411"
+  - name: 罗泽广
+    fingerprint: "956432"
+  - name: 姚思琪
+    fingerprint: "579554"
+  - name: 王卢婷
+    fingerprint: "214905"
+  - name: 胡其克
+    fingerprint: "357276"
+  - name: 赵泽旭
+    fingerprint: "206046"
+  - name: 周旋
+    fingerprint: "333499"
+  - name: 姚兴华
+    fingerprint: "108395"
+  - name: 刘廷凡
+    fingerprint: "396894"
+  - name: 林智杰
+    fingerprint: "163288"

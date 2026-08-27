@@ -55,13 +55,21 @@ class DistributedLock:
         self.machine_id = machine_id
         self._ensure_table()
 
-    # ── 内部 ───────────────────────────────────────────────────────
+    # ── 内部：连接管理 ───────────────────────────────────────────
+
+    def _connect(self) -> sqlite3.Connection:
+        """建立连接。注意：必须显式 close，不能用 with（with 不会关闭连接）。"""
+        conn = sqlite3.connect(self.db_path)
+        return conn
 
     def _ensure_table(self) -> None:
         """确保 hub_lock 表存在。"""
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._connect()
+        try:
             conn.execute(LOCK_TABLE_SQL)
             conn.commit()
+        finally:
+            conn.close()
 
     def _now(self) -> str:
         return datetime.now().isoformat()
@@ -71,9 +79,12 @@ class DistributedLock:
 
     def _cleanup_expired(self) -> None:
         """清理已超时的锁。"""
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._connect()
+        try:
             conn.execute("DELETE FROM hub_lock WHERE expires_at < ?", (self._now(),))
             conn.commit()
+        finally:
+            conn.close()
 
     # ── 公开接口 ───────────────────────────────────────────────────
 
@@ -93,7 +104,8 @@ class DistributedLock:
         now = self._now()
         expires = self._expires(timeout_seconds)
 
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._connect()
+        try:
             try:
                 conn.execute(
                     "INSERT INTO hub_lock (lock_id, holder, acquired_at, expires_at) VALUES (1, ?, ?, ?)",
@@ -104,6 +116,8 @@ class DistributedLock:
             except sqlite3.IntegrityError:
                 # 锁已被其他机器持有
                 return False
+        finally:
+            conn.close()
 
     def release(self) -> bool:
         """
@@ -113,13 +127,16 @@ class DistributedLock:
             True: 释放成功
             False: 锁不属于本机或已不存在
         """
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._connect()
+        try:
             cur = conn.execute(
                 "DELETE FROM hub_lock WHERE lock_id = 1 AND holder = ?",
                 (self.machine_id,),
             )
             conn.commit()
             return cur.rowcount > 0
+        finally:
+            conn.close()
 
     def is_held(self) -> Optional[str]:
         """
@@ -129,11 +146,14 @@ class DistributedLock:
             machine_id 字符串，或 None（无锁）
         """
         self._cleanup_expired()
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._connect()
+        try:
             row = conn.execute(
                 "SELECT holder FROM hub_lock WHERE lock_id = 1"
             ).fetchone()
             return row[0] if row else None
+        finally:
+            conn.close()
 
     def is_held_by_self(self) -> bool:
         """当前锁是否由本机持有。"""
@@ -145,7 +165,10 @@ class DistributedLock:
         强制释放锁（无论持有者是谁）。
         慎用：仅在确认对端机器宕机且无法自行释放时调用。
         """
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._connect()
+        try:
             cur = conn.execute("DELETE FROM hub_lock WHERE lock_id = 1")
             conn.commit()
             return cur.rowcount > 0
+        finally:
+            conn.close()

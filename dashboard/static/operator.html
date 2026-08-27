@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AKO_agent_工作台</title>
+<style>
+:root {
+  --bg-deep: #1e1f1c;
+  --bg-panel: #272822;
+  --bg-card: #2d2e29;
+  --bg-hover: #414339;
+  --text-primary: #c0c0c0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #808080;
+  --accent: #e5a020;
+  --accent-hover: #d18a1a;
+  --success: #7ec699;
+  --error: #e05252;
+  --border: #414339;
+  --logo-orange: #ffa532;
+  --cream-gold: #272822;
+  --warm-gray: #1e1f1c;
+  --deep-brown: #c0c0c0;
+  --amber-gold: #a0a0a0;
+  --molten-gold: #e5a020;
+  --warm-orange: #e5a020;
+  --soft-green: #7ec699;
+  --dark-red: #e05252;
+  --panel-bg: #272822;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--cream-gold);
+  color: var(--deep-brown);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶部系统栏 */
+.top-bar {
+  height: 48px;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.top-bar .logo { font-weight: 700; font-size: 15px; letter-spacing: 1px; }
+.top-bar .stats { display: flex; gap: 24px; }
+.top-bar .stats span { color: var(--molten-gold); font-weight: 600; }
+
+/* 主体三栏 */
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 左栏 — 工单导航 */
+.left-panel {
+  width: 260px;
+  background: var(--warm-gray);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--amber-gold);
+}
+.panel-title {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--deep-brown);
+  border-bottom: 1px solid var(--amber-gold);
+  background: var(--warm-gray);
+}
+.wo-section { border-bottom: 1px solid var(--amber-gold); }
+.wo-section-header {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--deep-brown);
+  background: color-mix(in srgb, var(--warm-gray) 80%, var(--amber-gold) 20%);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.wo-section-header:hover { background: color-mix(in srgb, var(--warm-gray) 70%, var(--amber-gold) 30%); }
+.wo-list { max-height: 180px; overflow-y: auto; padding: 4px; }
+.wo-card {
+  background: var(--cream-gold);
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  position: relative;
+  transition: all 0.2s;
+}
+.wo-card:hover { transform: translateX(2px); box-shadow: 0 2px 6px rgba(35,30,28,0.1); }
+.wo-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 6px 0 0 6px;
+}
+.wo-card.pending::before { background: var(--amber-gold); }
+.wo-card.running::before { background: var(--molten-gold); animation: pulse 1.5s infinite; }
+.wo-card.success::before { background: var(--soft-green); }
+.wo-card.failed::before { background: var(--dark-red); }
+.wo-card-id { font-weight: 700; color: var(--deep-brown); }
+.wo-card-meta { color: var(--amber-gold); font-size: 11px; margin-top: 2px; }
+.wo-card-status { float: right; font-size: 11px; }
+
+/* 中栏 — 主工作区 */
+.center-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 480px;
+}
+.input-area, .output-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.area-header {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--deep-brown);
+  background: color-mix(in srgb, var(--cream-gold) 90%, var(--molten-gold) 10%);
+  border-bottom: 1px solid var(--warm-gray);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.area-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* 能力选择器 */
+.capability-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: var(--deep-brown);
+  font-size: 13px;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+.capability-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--amber-gold);
+  margin-bottom: 12px;
+}
+
+/* YAML 编辑器 */
+.yaml-editor {
+  width: 100%;
+  min-height: 200px;
+  background: var(--panel-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--deep-brown);
+  resize: vertical;
+  outline: none;
+}
+.yaml-editor:focus { border-color: var(--molten-gold); }
+
+/* 操作按钮 */
+.btn-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg-deep);
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary {
+  background: transparent;
+  color: var(--deep-brown);
+  border: 1px solid var(--deep-brown);
+}
+.btn-secondary:hover { background: var(--warm-gray); }
+
+/* 输出区状态面板 */
+.status-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-badge.pending { background: color-mix(in srgb, var(--amber-gold) 20%, transparent); color: var(--amber-gold); }
+.status-badge.running { background: color-mix(in srgb, var(--molten-gold) 20%, transparent); color: var(--molten-gold); animation: pulse 1.5s infinite; }
+.status-badge.success { background: color-mix(in srgb, var(--soft-green) 20%, transparent); color: var(--soft-green); }
+.status-badge.failed { background: color-mix(in srgb, var(--dark-red) 20%, transparent); color: var(--dark-red); }
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--warm-gray);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--molten-gold);
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+
+/* 结果展示区 */
+.result-preview {
+  background: var(--panel-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amber-gold);
+  font-size: 13px;
+}
+
+/* 右栏 — 能力目录 */
+.right-panel {
+  width: 260px;
+  background: var(--warm-gray);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--amber-gold);
+}
+.cap-card {
+  background: var(--cream-gold);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.cap-card:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(35,30,28,0.12); }
+.cap-card-title { font-weight: 700; font-size: 13px; color: var(--deep-brown); }
+.cap-card-agent { font-size: 11px; color: var(--amber-gold); margin-top: 2px; }
+.cap-card-meta { display: flex; justify-content: space-between; font-size: 11px; margin-top: 6px; color: var(--amber-gold); }
+.cap-card-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--molten-gold);
+  background: transparent;
+  color: var(--molten-gold);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.cap-card-btn:hover { background: var(--molten-gold); color: var(--cream-gold); }
+
+/* 快捷调用 */
+.pipeline-section { padding: 10px; }
+.pipeline-btn {
+  width: 100%;
+  padding: 8px;
+  margin: 4px 0;
+  background: color-mix(in srgb, var(--cream-gold) 80%, var(--molten-gold) 20%);
+  border: 1px solid var(--molten-gold);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--deep-brown);
+  cursor: pointer;
+  font-weight: 600;
+}
+.pipeline-btn:hover { background: var(--molten-gold); color: var(--cream-gold); }
+
+/* 全局指示灯 */
+.indicator-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 10px;
+}
+.indicator-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+}
+.indicator-dot.online { background: var(--soft-green); }
+.indicator-dot.overload { background: var(--molten-gold); }
+.indicator-dot.offline { background: var(--dark-red); }
+.indicator-dot:hover::after {
+  content: attr(data-agent);
+  position: absolute;
+  bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* 底部状态条 */
+.bottom-bar {
+  height: 32px;
+  background: var(--warm-gray);
+  color: var(--deep-brown);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-size: 11px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--amber-gold);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--amber-gold); border-radius: 3px; }
+/* 登录鉴权遮罩 */
+#login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(35, 30, 28, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.login-box {
+  background: var(--panel-bg);
+  border: 2px solid var(--molten-gold);
+  border-radius: 14px;
+  padding: 40px 36px;
+  width: 360px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+.login-logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--deep-brown);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+.login-title { font-size: 14px; color: var(--amber-gold); margin-bottom: 4px; }
+.login-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 18px; }
+#fingerprint-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 22px;
+  letter-spacing: 8px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+#fingerprint-input:focus { border-color: var(--molten-gold); box-shadow: 0 0 0 3px rgba(185, 155, 95, 0.2); }
+.login-error { min-height: 18px; font-size: 12px; color: var(--dark-red); margin-top: 10px; }
+.login-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 11px;
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--bg-deep);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.login-btn:hover { background: var(--accent-hover); color: var(--bg-deep); }
+/* Logo 图片 */
+.logo-img { height: 22px; width: auto; vertical-align: middle; margin-right: 8px; border-radius: 3px; }
+
+/* 自然语言输入 */
+.nl-input-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.nl-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+.nl-input:focus { border-color: var(--accent); }
+.nl-input::placeholder { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- 登录鉴权遮罩 -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">AKO_agent_工作台</div>
+    <div class="login-title">员工身份验证</div>
+    <div class="login-sub">请输入 6 位数字指纹后使用</div>
+    <input id="fingerprint-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="off" />
+    <div id="login-error" class="login-error"></div>
+    <button id="login-btn" class="login-btn">进入工作台</button>
+  </div>
+</div>
+
+<!-- 顶部系统栏 -->
+<div class="top-bar">
+  <div class="logo"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO_agent_工作台</div>
+  <div class="stats">
+    <span id="top-online">在线Agent —</span>
+    <span id="top-load">本机负载 —</span>
+    <span id="top-hub">当前Hub: —</span>
+    <span id="top-user">👤 未登录</span>
+  </div>
+</div>
+
+<!-- 主体 -->
+<div class="main">
+
+  <!-- 左栏：工单导航 -->
+  <div class="left-panel">
+    <div class="panel-title">工单导航</div>
+    <div id="wo-nav" style="overflow-y:auto;flex:1;"></div>
+  </div>
+
+  <!-- 中栏：主工作区 -->
+  <div class="center-panel">
+
+    <!-- 输入区 -->
+    <div class="input-area">
+      <div class="area-header">
+        <span>任务输入区</span>
+        <span style="font-size:11px;color:var(--amber-gold);">YAML 工单编辑器</span>
+      </div>
+      <div class="area-body">
+        <div class="nl-input-row">
+          <input id="nl-input" class="nl-input" placeholder="💬 自然语言描述需求，例如：帮我给陶粒墙板报价" />
+          <button id="nl-submit" class="btn btn-primary">🔮 智能识别</button>
+        </div>
+        <select id="cap-select" class="capability-select"></select>
+        <div id="cap-meta" class="capability-meta"></div>
+        <textarea id="yaml-editor" class="yaml-editor" spellcheck="false"></textarea>
+        <div class="btn-group">
+          <button id="btn-submit" class="btn btn-primary">📤 提交工单</button>
+          <button id="btn-draft" class="btn btn-secondary">💾 存草稿</button>
+          <button id="btn-template" class="btn btn-secondary">📋 加载模板</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 输出区 -->
+    <div class="output-area">
+      <div class="area-header">
+        <span>任务输出区</span>
+        <span id="output-header" style="font-size:11px;color:var(--amber-gold);">—</span>
+      </div>
+      <div class="area-body">
+        <div id="output-status"></div>
+        <div id="result-preview" class="result-preview">提交工单后，结果将显示在这里</div>
+        <div id="output-actions" class="btn-group"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 右栏：能力目录 -->
+  <div class="right-panel">
+    <div class="panel-title">能力目录</div>
+    <div id="cap-cards" style="overflow-y:auto;flex:1;"></div>
+
+    <div class="panel-title" style="margin-top:8px;">快捷调用</div>
+    <div id="pipelines" class="pipeline-section"></div>
+
+    <div class="panel-title" style="margin-top:8px;">全局状态</div>
+    <div id="global-status" style="padding:8px 16px;font-size:12px;color:var(--deep-brown);">—</div>
+    <div id="indicator-grid" class="indicator-grid"></div>
+    <div id="global-msg" style="padding:8px 16px;font-size:11px;color:var(--amber-gold);">系统运行正常</div>
+  </div>
+
+</div>
+
+<!-- 底部状态条 -->
+<div class="bottom-bar">
+  <span id="bottom-event">最近事件: —</span>
+  <span id="bottom-latency">网络延迟 — │ v1.0</span>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+  var state = { capabilities: [], templates: [], pipelines: [], workorders: { counts: {}, groups: {} }, selectedWorkflow: null, currentWoId: null, pollTimer: null };
+  function $(sel) { return document.querySelector(sel); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function setEvent(msg) { var el = $("#bottom-event"); if (el) el.textContent = "最近事件: " + msg; }
+  async function fetchJSON(path, opts) { var resp = await fetch(path, opts || {}); if (!resp.ok) throw new Error("HTTP " + resp.status + " " + path); return resp.json(); }
+
+  async function loadCapabilities() {
+    try { var data = await fetchJSON("/api/capabilities"); state.capabilities = data.capabilities || []; }
+    catch (e) { state.capabilities = []; setEvent("加载能力目录失败: " + e.message); }
+    renderCapabilities();
+  }
+  function findCap(wid) { for (var i = 0; i < state.capabilities.length; i++) { if (state.capabilities[i].workflow_id === wid) return state.capabilities[i]; } return null; }
+  function renderCapabilities() { renderCapSelect(); renderCapCards(); renderIndicatorGrid(); renderTopBar(); }
+  function renderCapSelect() {
+    var sel = $("#cap-select"); if (!sel) return;
+    var html = '<option value="">🎨 选择能力…</option>';
+    state.capabilities.forEach(function (c) { html += '<option value="' + esc(c.workflow_id) + '">' + esc(c.display) + " (" + esc(c.workflow_id) + ")</option>"; });
+    sel.innerHTML = html; sel.onchange = onCapChange;
+  }
+  function onCapChange() { state.selectedWorkflow = $("#cap-select").value; renderCapMeta(findCap(state.selectedWorkflow)); loadTemplateFor(state.selectedWorkflow); }
+  function renderCapMeta(cap) {
+    var el = $("#cap-meta"); if (!el) return;
+    if (!cap) { el.innerHTML = ""; return; }
+    var load = (cap.cpu_percent != null && cap.cpu_percent !== "") ? cap.cpu_percent + "%" : "—";
+    el.innerHTML = "<span>目标Agent: " + esc(cap.display_agent || cap.workflow_id) + "</span><span>SLA: " + esc(cap.sla_seconds != null ? cap.sla_seconds + "s" : "—") + "</span><span>当前负载: " + esc(load) + "</span>";
+  }
+  function renderCapCards() {
+    var el = $("#cap-cards"); if (!el) return;
+    if (!state.capabilities.length) { el.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--amber-gold);">暂无能力数据</div>'; return; }
+    var html = "";
+    state.capabilities.forEach(function (c) {
+      var canUse = c.online && c.deployable !== false;
+      var load = (c.cpu_percent != null && c.cpu_percent !== "") ? c.cpu_percent + "%" : "—";
+      html += '<div class="cap-card" data-wid="' + esc(c.workflow_id) + '"' + (canUse ? "" : ' style="opacity:0.6;"') + ">" +
+        '<div class="cap-card-title">' + esc(c.display) + "</div>" +
+        '<div class="cap-card-agent">' + esc(c.display_agent || c.workflow_id) + "</div>" +
+        '<div class="cap-card-meta"><span>' + (c.online ? "🟢 在线" : "🔴 离线") + "</span><span>负载 " + esc(load) + "</span></div>" +
+        '<div class="cap-card-meta">SLA: ' + esc(c.sla_seconds != null ? c.sla_seconds + "s" : "—") + "</div>" +
+        '<button class="cap-card-btn"' + (canUse ? "" : ' disabled style="opacity:0.5;cursor:not-allowed;"') + ">" + (canUse ? "快速调用" : "不可用") + "</button>" +
+        "</div>";
+    });
+    el.innerHTML = html;
+    el.querySelectorAll(".cap-card-btn").forEach(function (btn) { btn.addEventListener("click", function () { quickCall(btn.closest(".cap-card").getAttribute("data-wid")); }); });
+  }
+  function renderIndicatorGrid() {
+    var grid = $("#indicator-grid"), statusEl = $("#global-status"); if (!grid) return;
+    var html = "", online = 0, total = 0;
+    state.capabilities.forEach(function (c) {
+      total++; var cls = "offline";
+      if (c.online) { online++; cls = (Number(c.cpu_percent) > 80) ? "overload" : "online"; }
+      html += '<div class="indicator-dot ' + cls + '" data-agent="' + esc(c.display_agent || c.workflow_id) + '"></div>';
+    });
+    grid.innerHTML = html || '<div style="font-size:11px;color:var(--amber-gold);">暂无 Agent</div>';
+    if (statusEl) statusEl.textContent = online + "/" + total + " 在线";
+  }
+  function renderTopBar() {
+    var on = 0, total = 0, sum = 0, cnt = 0;
+    state.capabilities.forEach(function (c) { total++; if (c.online) on++; var v = Number(c.cpu_percent); if (!isNaN(v)) { sum += v; cnt++; } });
+    var avg = cnt ? Math.round(sum / cnt) : 0;
+    var e1 = $("#top-online"), e2 = $("#top-load");
+    if (e1) e1.textContent = "在线Agent " + on + "/" + total;
+    if (e2) e2.textContent = "本机负载 " + avg + "%";
+  }
+
+  async function loadPipelines() {
+    try { var data = await fetchJSON("/api/pipelines"); state.pipelines = data.pipelines || []; state.templates = data.templates || []; }
+    catch (e) { state.pipelines = []; state.templates = []; }
+    renderPipelines();
+  }
+  function renderPipelines() {
+    var el = $("#pipelines"); if (!el) return;
+    var html = "";
+    state.pipelines.forEach(function (p) {
+      html += '<button class="pipeline-btn" data-name="' + esc(p.name) + '" data-seq="' + esc((p.sequence || []).join(",")) + '">' + esc(p.display_name || p.name) + "</button>";
+    });
+    el.innerHTML = html || '<div style="font-size:11px;color:var(--amber-gold);padding:8px 16px;">暂无流水线</div>';
+    el.querySelectorAll(".pipeline-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var seq = (btn.getAttribute("data-seq") || "").split(",").filter(Boolean);
+        setEvent("已选快捷调用: " + btn.getAttribute("data-name") + "，共 " + seq.length + " 步");
+        if (seq.length) quickCall(seq[0]);
+      });
+    });
+  }
+  function loadTemplateFor(wid) {
+    var tpl = null;
+    for (var i = 0; i < state.templates.length; i++) { if (state.templates[i].workflow_id === wid) { tpl = state.templates[i]; break; } }
+    var editor = $("#yaml-editor"); if (!editor) return;
+    if (tpl && tpl.yaml) editor.value = tpl.yaml;
+    else if (!wid) editor.value = "";
+  }
+  function quickCall(wid) { var sel = $("#cap-select"); if (!sel || !wid) return; sel.value = wid; onCapChange(); }
+  async function loadWorkOrders() {
+    try { state.workorders = await fetchJSON("/api/workorders"); }
+    catch (e) { state.workorders = { counts: {}, groups: {} }; setEvent("加载工单失败: " + e.message); }
+    renderWoNav();
+  }
+  function renderWoNav() {
+    var el = $("#wo-nav"); if (!el) return;
+    var groups = state.workorders.groups || {}, counts = state.workorders.counts || {};
+    var sections = [
+      { key: "pending", icon: "📋", title: "待处理", status: "pending" },
+      { key: "draft", icon: "🗒️", title: "草稿", status: "pending" },
+      { key: "deploy_wait", icon: "📦", title: "待部署", status: "pending" },
+      { key: "running", icon: "🔄", title: "执行中", status: "running" },
+      { key: "done", icon: "✅", title: "已完成", status: "success" },
+      { key: "failed", icon: "❌", title: "失败", status: "failed" },
+      { key: "cancelled", icon: "⛔", title: "已取消", status: "pending" }
+    ];
+    var html = "";
+    sections.forEach(function (s) {
+      var list = groups[s.key] || []; if (!list.length) return;
+      var n = (counts[s.key] != null ? counts[s.key] : list.length);
+      html += '<div class="wo-section"><div class="wo-section-header"><span>' + s.icon + " " + s.title + " (" + n + ')</span><span>▼</span></div><div class="wo-list">';
+      list.forEach(function (w) { html += woCard(s.status, w); });
+      html += "</div></div>";
+    });
+    el.innerHTML = html || '<div style="padding:12px;font-size:12px;color:var(--amber-gold);">暂无工单</div>';
+    el.querySelectorAll(".wo-card").forEach(function (card) { card.addEventListener("click", function () { loadWoDetail(card.getAttribute("data-woid")); }); });
+  }
+  function woCard(statusCls, w) {
+    var meta = esc(w.display_cap || w.workflow_id || "");
+    if (w.project_id) meta += " │ " + esc(w.project_id);
+    var icon = statusCls === "running" ? "🔄" : statusCls === "success" ? "✅" : statusCls === "failed" ? "❌" : "⏳";
+    return '<div class="wo-card ' + statusCls + '" data-woid="' + esc(w.work_order_id) + '"><span class="wo-card-id">' + esc(w.work_order_id) + "</span><span class=\"wo-card-status\">" + icon + "</span><div class=\"wo-card-meta\">" + meta + "</div></div>";
+  }
+  async function loadWoDetail(woId) {
+    state.currentWoId = woId;
+    try {
+      var d = await fetchJSON("/api/workorders/" + encodeURIComponent(woId));
+      if (d.raw_payload) $("#yaml-editor").value = d.raw_payload;
+      if (d.workflow_id) { $("#cap-select").value = d.workflow_id; onCapChange(); }
+      renderOutput(d);
+      pollResult(woId);
+    } catch (e) { setEvent("加载工单详情失败: " + e.message); }
+  }
+
+  function parseYamlProjectId(t) { var m = /^project_id\s*:\s*"?([^"\r\n]+)"?/m.exec(t || ""); return m ? m[1].trim() : ""; }
+  function collectWorkorderPayload(saveAs) {
+    var wid = state.selectedWorkflow || $("#cap-select").value;
+    var cap = findCap(wid), yamlText = $("#yaml-editor").value || "", pid = parseYamlProjectId(yamlText);
+    return { workflow_id: wid, display_cap: cap ? cap.display : wid, project_id: pid, payload: { project_id: pid }, raw_payload: yamlText, priority: "normal", sla_seconds: cap ? cap.sla_seconds : null, save_as: saveAs };
+  }
+  async function submitWorkorder(saveAs) {
+    var payload = collectWorkorderPayload(saveAs);
+    if (!payload.workflow_id) { setEvent("请先选择能力"); return; }
+    if (!payload.raw_payload.trim()) { setEvent("工单 YAML 为空"); return; }
+    try {
+      var created = await fetchJSON("/api/workorders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (created.status !== "ok") { setEvent("提交失败: " + (created.message || "未知错误")); return; }
+      state.currentWoId = created.work_order_id;
+      setEvent((saveAs === "draft" ? "已存草稿" : "已提交工单") + " " + created.work_order_id);
+      if (saveAs === "submit") { await dispatchWorkorder(created.work_order_id); }
+      else { renderOutput({ status: "draft", work_order_id: created.work_order_id }); }
+      await loadWorkOrders();
+    } catch (e) { setEvent("提交异常: " + e.message); }
+  }
+  async function dispatchWorkorder(woId) {
+    try {
+      var r = await fetchJSON("/api/workorders/" + encodeURIComponent(woId) + "/dispatch", { method: "POST" });
+      renderOutput({ work_order_id: woId, status: r.record_status || "running", result_summary: r.message || "" });
+      if (r.record_status === "deploy_wait") { setEvent(woId + " 待部署: " + (r.message || "")); }
+      else { pollResult(woId); }
+    } catch (e) { setEvent("派发失败: " + e.message); }
+  }
+  function pollResult(woId) {
+    if (state.pollTimer) clearInterval(state.pollTimer);
+    state.pollTimer = setInterval(async function () {
+      try {
+        var r = await fetchJSON("/api/workorders/" + encodeURIComponent(woId) + "/result");
+        renderOutput(r);
+        if (["done", "failed", "success", "cancelled"].indexOf(r.status) >= 0) { clearInterval(state.pollTimer); state.pollTimer = null; await loadWorkOrders(); }
+      } catch (e) {}
+    }, 2000);
+  }
+  function statusBadge(status) {
+    if (status === "done" || status === "success") return { text: "✅ 成功", cls: "success" };
+    if (status === "running") return { text: "🔄 执行中", cls: "running" };
+    if (status === "failed") return { text: "❌ 失败", cls: "failed" };
+    if (status === "pending") return { text: "⏳ 待派发", cls: "pending" };
+    if (status === "deploy_wait") return { text: "📦 待部署", cls: "pending" };
+    if (status === "draft") return { text: "💾 草稿", cls: "pending" };
+    if (status === "cancelled") return { text: "⛔ 已取消", cls: "failed" };
+    return { text: "—", cls: "pending" };
+  }
+  function statusProgress(status) {
+    if (status === "done" || status === "success") return 100;
+    if (status === "running") return 66;
+    if (status === "pending") return 33;
+    if (status === "deploy_wait") return 20;
+    return 0;
+  }
+  function renderOutput(r) {
+    var header = $("#output-header"), statusEl = $("#output-status"), preview = $("#result-preview"), actions = $("#output-actions");
+    if (!statusEl) return;
+    var status = (r && r.status) || "idle";
+    var woId = (r && r.work_order_id) || state.currentWoId || "";
+    var badge = statusBadge(status);
+    var summary = (r && (r.result_summary || r.message)) || "";
+    if (header) header.textContent = badge.text + (woId ? " — " + woId : "");
+    statusEl.innerHTML =
+      '<div class="status-panel"><div class="status-line"><span class="status-badge ' + badge.cls + '">' + badge.text + "</span><span>工单: " + esc(woId || "—") + "</span></div>" +
+      (summary ? '<div style="font-size:12px;color:var(--amber-gold);">' + esc(summary) + "</div>" : "") +
+      '<div class="progress-bar"><div class="progress-fill" style="width:' + statusProgress(status) + '%"></div></div></div>';
+    var fileIds = (r && r.output_file_ids) || [];
+    var previewHtml = "";
+    if (status === "done" || status === "success") {
+      previewHtml = '<div style="text-align:center;"><div style="font-size:32px;margin-bottom:8px;">📄</div><div>结果已生成</div>' +
+        (fileIds.length ? '<div style="font-size:11px;color:var(--amber-gold);margin-top:4px;">' + fileIds.length + " 个产出文件</div>" : "") + "</div>";
+    } else if (status === "failed") {
+      previewHtml = '<div style="text-align:center;color:var(--dark-red);">❌ 执行失败</div>';
+    } else if (status === "running" || status === "pending" || status === "deploy_wait") {
+      previewHtml = '<div style="text-align:center;">⏳ ' + esc(badge.text) + "</div>";
+    } else if (status === "draft") {
+      previewHtml = '<div style="text-align:center;">💾 已保存为草稿，尚未派发</div>';
+    } else {
+      previewHtml = '<div style="text-align:center;">提交工单后，结果将显示在这里</div>';
+    }
+    if (preview) preview.innerHTML = previewHtml;
+    var actHtml = "";
+    fileIds.forEach(function (fid) {
+      actHtml += '<a class="btn btn-secondary" href="' + esc("/api/files/" + encodeURIComponent(fid) + "/download") + '" target="_blank">⬇️ 下载 ' + esc(fid) + "</a>";
+    });
+    actHtml += '<button class="btn btn-secondary" id="btn-copy">📋 复制结果</button><button class="btn btn-secondary" id="btn-share">🔗 分享</button><button class="btn btn-secondary" id="btn-log">📜 查看日志</button>';
+    actions.innerHTML = actHtml;
+    var bCopy = $("#btn-copy"), bShare = $("#btn-share"), bLog = $("#btn-log");
+    if (bCopy) bCopy.onclick = function () {
+      var t = "工单 " + woId + " 状态: " + badge.text + (summary ? "\n" + summary : "");
+      if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { setEvent("已复制结果到剪贴板"); });
+    };
+    if (bShare) bShare.onclick = function () { if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(function () { setEvent("已复制当前页面链接"); }); };
+    if (bLog) bLog.onclick = function () {
+      setEvent("日志: " + (summary || "（无）"));
+      if (preview) preview.innerHTML = '<div style="text-align:left;font-size:12px;white-space:pre-wrap;word-break:break-all;">' + esc(summary || "暂无日志") + "</div>";
+    };
+  }
+
+  function connectWS() {
+    var ws;
+    try { ws = new WebSocket(WS_URL); } catch (e) { return; }
+    ws.onopen = function () { setEvent("已连接实时通道"); };
+    ws.onmessage = function (ev) {
+      try { var m = JSON.parse(ev.data); if (m.type === "state_update" || m.type === "full_state") { loadCapabilities(); loadWorkOrders(); } } catch (e) {}
+    };
+    ws.onclose = function () { setTimeout(connectWS, 3000); };
+    ws.onerror = function () { try { ws.close(); } catch (e) {} };
+  }
+
+  // ── 自然语言意图识别（调用后端 IntentRouter） ─────────────
+  async function handleNlInput() {
+    var input = $("#nl-input");
+    var text = (input ? input.value : "").trim();
+    if (!text) { setEvent("请先输入需求描述"); return; }
+    try {
+      var r = await fetchJSON("/api/intent/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text })
+      });
+      if (r.status !== "ok") { setEvent("识别失败: " + (r.message || "未知错误")); return; }
+      var conf = Math.round((r.confidence || 0) * 100);
+      if (!r.matched || !r.workflow_id) {
+        setEvent("识别为「" + (r.intent || r.agent_id) + "」(" + conf + "%)，但该能力未接入工作台，请手动选择");
+        return;
+      }
+      var sel = $("#cap-select");
+      if (sel) { sel.value = r.workflow_id; onCapChange(); }
+      var editor = $("#yaml-editor");
+      if (editor) {
+        var safe = text.replace(/"/g, "'");
+        var nl = "# 自然语言需求: " + safe.replace(/\r?\n/g, " ") + "\nrequest: \"" + safe + "\"\n";
+        editor.value = nl + (editor.value || "");
+      }
+      setEvent("已识别「" + (r.intent || r.display) + "」(" + conf + "%) → " + r.display);
+    } catch (e) {
+      setEvent("意图识别服务不可用: " + e.message);
+    }
+  }
+
+  function bindButtons() {
+    var b1 = $("#btn-submit"), b2 = $("#btn-draft"), b3 = $("#btn-template"), b4 = $("#nl-submit"), nl = $("#nl-input");
+    if (b1) b1.onclick = function () { submitWorkorder("submit"); };
+    if (b2) b2.onclick = function () { submitWorkorder("draft"); };
+    if (b3) b3.onclick = function () { loadTemplateFor(state.selectedWorkflow); };
+    if (b4) b4.onclick = handleNlInput;
+    if (nl) nl.addEventListener("keydown", function (ev) { if (ev.key === "Enter") handleNlInput(); });
+  }
+
+  async function init() {
+    bindButtons();
+    await Promise.all([loadCapabilities(), loadPipelines(), loadWorkOrders()]);
+    connectWS();
+  }
+
+  // ── 登录鉴权（6 位数字指纹） ───────────────────────────────
+  var currentUser = "";
+
+  function showLogin() {
+    var ov = $("#login-overlay");
+    if (ov) ov.style.display = "flex";
+  }
+  function hideLogin() {
+    var ov = $("#login-overlay");
+    if (ov) ov.style.display = "none";
+  }
+
+  async function attemptLogin() {
+    var input = $("#fingerprint-input");
+    var err = $("#login-error");
+    var fp = (input ? input.value : "").trim();
+    if (!/^\d{6}$/.test(fp)) {
+      if (err) err.textContent = "请输入 6 位数字指纹";
+      return;
+    }
+    try {
+      var r = await fetchJSON("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fingerprint: fp })
+      });
+      if (r.status === "ok") {
+        currentUser = r.name || "员工";
+        hideLogin();
+        var u = $("#top-user");
+        if (u) u.textContent = "👤 " + currentUser;
+        setEvent("欢迎 " + currentUser + " 登录");
+        await init();
+      } else {
+        if (err) err.textContent = r.message || "指纹不匹配";
+        if (input) { input.value = ""; input.focus(); }
+      }
+    } catch (e) {
+      if (err) err.textContent = "登录服务不可用: " + e.message;
+    }
+  }
+
+  function bindLogin() {
+    var btn = $("#login-btn"), input = $("#fingerprint-input");
+    if (btn) btn.onclick = attemptLogin;
+    if (input) {
+      input.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") attemptLogin();
+      });
+      input.focus();
+    }
+  }
+
+  bindLogin();
+  showLogin();
+})();
+</script>
+</body>
+</html>

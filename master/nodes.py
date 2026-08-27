@@ -102,44 +102,61 @@ def task_router(state: MasterState) -> Dict[str, Any]:
             "status": "pending",
         }
 
-    # 2. 关键词路由（极简映射）
-    intent_map = {
-        "结构": "AKO_architect_agent",
-        "计算": "AKO_architect_agent",
-        "设计": "AKO_architect_agent",
-        "图纸": "AKO_drawing_inspector",
-        "质检": "AKO_drawing_inspector",
-        "审查": "AKO_drawing_inspector",
-        "图像": "AKO_image_analyzer",
-        "缺陷": "AKO_image_analyzer",
-        "识别": "AKO_image_analyzer",
-        "问答": "AKO_chat",
-        "规范": "AKO_chat",
-        "查询": "AKO_chat",
-        "知识": "AKO_chat",
-        "主流程": "AKO工作流",
-        "编排": "AKO工作流",
-        "全流程": "AKO工作流",
-        # P1 新增：独立 Agent 路由
-        "商业": "AKO_business_agent",
-        "报价": "AKO_quote_agent",
-        "报表": "AKO_reports",
-        "报告": "AKO_reports",
-        "报告生成": "AKO_reports",
-        "内容": "AKO_geo",
-        "营销": "AKO_geo",
-        "GEO": "AKO_geo",
-        "媒体": "AKO_media_agent",
-    }
+    # 优先级分组路由：数字越小优先级越高，P0 > P1 > P2 > P3，同优先级长度降序
+    # 匹配顺序: P0(法律最高) > P1(核心业务) > P2(增值) > P3(通用)
+    intent_routing: list[tuple[int, int, str, str]] = [
+        # P0: 法律关键词（最高优先，数字小但后处理）
+        (0, 4, "司法解释", "AKO_law_agent"),
+        (0, 2, "法律",     "AKO_law_agent"),
+        (0, 2, "立法",     "AKO_law_agent"),
+        (0, 2, "法规",     "AKO_law_agent"),
+        (0, 2, "合规",     "AKO_law_agent"),
+        (0, 2, "仲裁",     "AKO_law_agent"),
+        # P1: 核心业务关键词
+        (1, 2, "结构",    "AKO_architect_agent"),
+        (1, 2, "计算",    "AKO_architect_agent"),
+        (1, 2, "设计",    "AKO_architect_agent"),
+        (1, 2, "图纸",    "AKO_drawing_inspector"),
+        (1, 2, "质检",    "AKO_drawing_inspector"),
+        (1, 2, "图像",    "AKO_image_analyzer_agent"),
+        (1, 2, "缺陷",    "AKO_image_analyzer_agent"),
+        (1, 2, "识别",    "AKO_image_analyzer_agent"),
+        # P2: 增值服务
+        (2, 4, "报告生成", "AKO_reports"),
+        (2, 3, "主流程",  "AKO工作流"),
+        (2, 3, "全流程",  "AKO工作流"),
+        (2, 3, "GEO",     "AKO_geo"),
+        (2, 2, "商业",    "AKO_business_agent"),
+        (2, 2, "报价",    "AKO_quote_agent"),
+        (2, 2, "报表",    "AKO_reports"),
+        (2, 2, "报告",    "AKO_reports"),
+        (2, 2, "内容",    "AKO_geo"),
+        (2, 2, "营销",    "AKO_geo"),
+        (2, 2, "媒体",    "AKO_media_agent"),
+        (2, 2, "编排",    "AKO工作流"),
+        (2, 2, "问答",    "AKO_chat"),
+        (2, 2, "规范",    "AKO_chat"),
+        (2, 2, "查询",    "AKO_chat"),
+        (2, 2, "知识",    "AKO_chat"),
+        # P3: 通用兜底（数字最大，优先级最低）
+        (3, 2, "审查",    "AKO_drawing_inspector"),
+    ]
 
     matched = None
-    for keyword, wf in intent_map.items():
+    # sorted 默认升序：key=(x[0], -x[1]) → P0(小)在前优先匹配，同优先级长度降序
+    for _priority, _kw_len, keyword, wf in sorted(intent_routing, key=lambda x: (x[0], -x[1])):
         if keyword in intent:
             matched = wf
             break
 
     if matched:
         spoke = get_spoke_by_id(matched)
+        if spoke is None:
+            return {
+                "status": "failed",
+                "error_log": f"关键词 '{keyword}' 匹配到 {matched}，但该 workflow_id 未注册",
+                "started_at": datetime.now().isoformat(),
+            }
         return {
             "target_workflow": matched,
             "target_agent": spoke.get("entry_module"),
@@ -308,11 +325,15 @@ def _workflow_caller_core(state: MasterState) -> Dict[str, Any]:
     # 合并 Spoke 返回的文件与扫描发现的文件
     all_files = list(set(spoke_output.get("output_files", []) + new_files))
 
-    return {
+    result: Dict[str, Any] = {
         "spoke_output": spoke_output,
         "spoke_output_paths": all_files,
         "status": "running" if not spoke_output.get("error") else "failed",
     }
+    if spoke_output.get("error"):
+        # 将 Spoke 返回的错误透传到 error_log，避免被 error_handler 丢弃成 None
+        result["error_log"] = spoke_output["error"]
+    return result
 
 
 def _call_spoke_subprocess(
@@ -544,7 +565,11 @@ def error_handler(state: MasterState) -> Dict[str, Any]:
             db.execute(
                 """INSERT INTO task_queue
                    (task_id, workflow_id, trigger_agent, status, error_log, finished_at)
-                   VALUES (?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?)
+                   ON CONFLICT(task_id) DO UPDATE SET
+                       status=excluded.status,
+                       error_log=excluded.error_log,
+                       finished_at=excluded.finished_at""",
                 (task_id, state.get("target_workflow", ""), state.get("trigger_agent", "manual"),
                  "failed", error_log, datetime.now().isoformat()),
             )
@@ -770,7 +795,11 @@ def state_aggregator(state: MasterState) -> Dict[str, Any]:
                 """INSERT INTO task_queue
                    (task_id, workflow_id, trigger_agent, status,
                     output_file_ids, finished_at)
-                   VALUES (?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?)
+                   ON CONFLICT(task_id) DO UPDATE SET
+                       status=excluded.status,
+                       output_file_ids=excluded.output_file_ids,
+                       finished_at=excluded.finished_at""",
                 (task_id, state.get("target_workflow", ""), state.get("trigger_agent", "manual"),
                  "done", output_ids, datetime.now().isoformat()),
             )

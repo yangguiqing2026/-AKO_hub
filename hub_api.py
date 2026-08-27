@@ -32,6 +32,13 @@ from core.knowledge_hub import KnowledgeHub
 from registry.workflows import (
     SpokeInfo, list_all_spokes, get_spoke_by_id,
     register_spoke, unregister_spoke, get_spokes_by_source_dir,
+    enrich_spoke, list_spokes_enriched, list_unclassified,
+)
+from registry.taxonomy import (
+    VALID_DOMAINS, VALID_FUNCTIONS,
+    get_domain, get_function, get_category,
+    list_by_domain, list_by_function,
+    find_unclassified,
 )
 
 
@@ -63,6 +70,45 @@ def _resolve_paths() -> Dict[str, str]:
 
 
 # ── API 1: submit_task ───────────────────────────────────────────
+
+def call_llm(prompt: str, model: str = "openai/qwen3-14b",
+             fallback_chain: Optional[List[str]] = None) -> Dict[str, str]:
+    """调用本地 OpenAI 兼容 LLM 端点（WSL llama.cpp :8081）。
+
+    端点/密钥可用环境变量 OPENAI_API_BASE / OPENAI_API_KEY 覆盖，
+    默认模型 openai/qwen3-14b、默认密钥 sk-ako-local（内网本地服务）。
+    支持 fallback_chain 依次重试；全部失败抛 RuntimeError，
+    调用方（ako_geo n3/n5）既有 except 会沿占位降级路径处理。
+
+    返回: {"content": "<模型输出文本>"}
+    """
+    import os
+
+    base = os.environ.get("OPENAI_API_BASE", "http://localhost:8081/v1")
+    api_key = os.environ.get("OPENAI_API_KEY", "sk-ako-local")
+    try:
+        import requests
+    except ImportError as e:
+        raise RuntimeError("hub_api.call_llm 需要 requests 依赖") from e
+
+    models = [model] + [m for m in (fallback_chain or []) if m]
+    last_err: Optional[Exception] = None
+    for m in models:
+        try:
+            resp = requests.post(
+                f"{base.rstrip('/')}/chat/completions",
+                json={"model": m, "messages": [{"role": "user", "content": prompt}]},
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=120,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            return {"content": content}
+        except Exception as e:
+            last_err = e
+    raise RuntimeError(f"call_llm 全部模型调用失败: {last_err}")
+
 
 def submit_task(payload: Dict[str, Any], task_id: Optional[str] = None,
                 trigger: str = "external") -> Dict[str, Any]:
@@ -313,9 +359,12 @@ def register_spoke_api(
     entry_module: str,
     source_dir: str,
     entry_function: str = "run",
-    required_kb_ids: list = None,
+    required_kb_ids: Optional[List[str]] = None,
     output_dir: str = "",
     description: str = "",
+    invoke_mode: str = "importlib",
+    domain: str = "",
+    function: str = "",
 ) -> Dict[str, Any]:
     """
     注册一个新的 Spoke（Agent 或 Workflow）到 AKO Hub。
@@ -330,6 +379,9 @@ def register_spoke_api(
         required_kb_ids: 所需知识库 ID 列表
         output_dir: 输出目录（相对于 files/）
         description: 描述信息
+        invoke_mode: "importlib" (默认) | "subprocess"
+        domain: 业务域（可选，来自 registry/taxonomy.py 枚举）
+        function: 功能类型（可选，来自 registry/taxonomy.py 枚举）
 
     Returns:
         {"registered": bool, "workflow_id": str, "message": str}
@@ -345,12 +397,20 @@ def register_spoke_api(
         "description": description,
         "status": "registered",
         "source_dir": source_dir.replace("\\", "/"),
+        "invoke_mode": invoke_mode,
     }
     is_new = register_spoke(spoke_info)
+    classification_saved = True
+    if domain and function:
+        from registry.taxonomy import set_classification
+        classification_saved = set_classification(workflow_id, domain, function)
     return {
         "registered": True,
         "workflow_id": workflow_id,
         "is_new": is_new,
+        "domain": domain,
+        "function": function,
+        "classification_saved": classification_saved,
         "message": f"新增注册: {workflow_id}" if is_new else f"更新已有: {workflow_id}",
     }
 
@@ -383,6 +443,70 @@ def remove_spoke(workflow_id: str) -> Dict[str, Any]:
         "workflow_id": workflow_id,
         "message": f"已移除: {workflow_id}" if ok else f"未找到: {workflow_id}",
     }
+
+
+# ── API 12: taxonomy（Agent 分类学） ──────────────────────────
+
+def taxonomy_list() -> Dict[str, Any]:
+    """
+    查询完整分类学：三维枚举 + 全部 Agent 的分类映射 + 未分类清单。
+
+    Returns:
+        {
+            "domains": [...],
+            "functions": [...],
+            "mapping": {workflow_id: {"domain": str, "function": str}},
+            "unclassified": [...],
+        }
+    """
+    mapping = {}
+    for spoke in list_spokes_enriched():
+        mapping[spoke["workflow_id"]] = {
+            "domain": spoke.get("domain", ""),
+            "function": spoke.get("function", ""),
+            "category": spoke.get("category", ""),
+        }
+
+    return {
+        "domains": sorted(VALID_DOMAINS),
+        "functions": sorted(VALID_FUNCTIONS),
+        "mapping": mapping,
+        "unclassified": list_unclassified(),
+    }
+
+
+def classify_agent(workflow_id: str) -> Dict[str, Any]:
+    """
+    查询单个 Agent 的三维分类。
+
+    Args:
+        workflow_id: Agent workflow_id
+
+    Returns:
+        {"workflow_id": str, "domain": str, "function": str, "category": str}
+        未分类时 domain/function 为空字符串。
+    """
+    return {
+        "workflow_id": workflow_id,
+        "domain": get_domain(workflow_id),
+        "function": get_function(workflow_id),
+        "category": get_category(workflow_id),
+    }
+
+
+def list_agents_by_domain(domain: str) -> List[str]:
+    """按业务域列出全部 Agent workflow_id。"""
+    return list_by_domain(domain)
+
+
+def list_agents_by_function(function: str) -> List[str]:
+    """按功能类型列出全部 Agent workflow_id。"""
+    return list_by_function(function)
+
+
+def unclassified_agents() -> List[str]:
+    """列出「未分类」的 Agent workflow_id。"""
+    return list_unclassified()
 
 
 # ── 便捷：直接运行的 CLI 兼容（保留向后兼容） ─────────────────────

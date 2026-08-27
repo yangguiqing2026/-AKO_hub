@@ -8,7 +8,7 @@ config.py: GEO Spoke 全局配置，包含路径、平台列表、LLM 路由等�
 from pathlib import Path
 
 # ── 根目录 ──────────────────────────────────────────────────────────
-AKO_HUB_ROOT = Path("D:/AKO_Hub")
+AKO_HUB_ROOT = Path(__file__).resolve().parent.parent
 
 # GEO 输出根目录（不在百度网盘同步目录下）
 GEO_OUTPUT_ROOT = AKO_HUB_ROOT / "geo_output"
@@ -52,19 +52,23 @@ SCAN_INTERVAL_SECONDS = 900  # N0_Scan 扫描间隔（15 分钟）
 # ── LLM 路由配置 ────────────────────────────────────────────────────
 # N3_Outline: 深度构思，优先 deepseek
 LLM_ROUTE_OUTLINE = {
-    "primary": "deepseek",
+    "primary": "openai",
     "fallback": ["kimi", "ollama"],
 }
 
 # N5_Format: 长文润色用 kimi，短文案/标题用 qwen
 LLM_ROUTE_FORMAT_LONG = {
-    "primary": "kimi",
+    "primary": "openai",
     "fallback": ["deepseek", "ollama"],
 }
 LLM_ROUTE_FORMAT_SHORT = {
-    "primary": "qwen",
+    "primary": "openai",
     "fallback": ["kimi", "ollama"],
 }
+
+# LLM 生成额度（max_tokens）：Qwen3 是思考模型，推理会占用 token 额度，
+# 需给足以避免正文被挤占而返回空 content。该值须小于 llama.cpp 的 --ctx-size。
+LLM_MAX_TOKENS = 4096
 
 # ── KnowledgeHub 配置 ───────────────────────────────────────────────
 # GEO 锚点专用 Collection（优先检索）

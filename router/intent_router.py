@@ -21,6 +21,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from registry.taxonomy import (
+    get_domain,
+    get_function,
+    get_category,
+    list_by_domain,
+    list_by_function,
+    find_unclassified,
+)
+from registry.workflows import list_spokes_enriched, list_unclassified
+from router.task_executor import TaskNode
+
 
 # ── 常量 ───────────────────────────────────────────────────────────
 DEFAULT_DB_PATH: str = "ako_hub.db"
@@ -45,8 +56,8 @@ _FALLBACK_ROUTING: Dict[str, Dict[str, Any]] = {
     "草图":      {"agent_id": "AKO_layout_agent",    "confidence": 0.85},
     "图纸":      {"agent_id": "AKO_drawing_inspector","confidence": 0.90},
     "审图":      {"agent_id": "AKO_drawing_inspector","confidence": 0.95},
-    "分析":      {"agent_id": "AKO_image_analyzer",  "confidence": 0.70},
-    "图像":      {"agent_id": "AKO_image_analyzer",  "confidence": 0.80},
+    "分析":      {"agent_id": "AKO_image_analyzer_agent",  "confidence": 0.70},
+    "图像":      {"agent_id": "AKO_image_analyzer_agent",  "confidence": 0.80},
     "设计":      {"agent_id": "AKO_architect_agent", "confidence": 0.75},
     "建筑":      {"agent_id": "AKO_architect_agent", "confidence": 0.80},
     "报表":      {"agent_id": "AKO_reports",         "confidence": 0.90},
@@ -240,6 +251,40 @@ class IntentRouter:
 
         executor = TaskExecutor(db_path=self.db_path)
         return executor.execute(plan)
+
+    # ── 分类感知（三维分类学） ──────────────────────────────────
+
+    def agents_in_domain(self, domain: str) -> List[str]:
+        """返回属于某业务域的全部 Agent（workflow_id 列表）。"""
+        return list_by_domain(domain)
+
+    def agents_by_function(self, function: str) -> List[str]:
+        """返回属于某功能类型的全部 Agent（workflow_id 列表）。"""
+        return list_by_function(function)
+
+    def classify(self, agent_id: str) -> Dict[str, Any]:
+        """返回单个 Agent 的三维分类。"""
+        return {
+            "agent_id": agent_id,
+            "domain": get_domain(agent_id),
+            "function": get_function(agent_id),
+            "category": get_category(agent_id),
+        }
+
+    def taxonomy_map(self) -> Dict[str, Dict[str, str]]:
+        """返回全部已注册 Agent 的分类映射。"""
+        return {
+            s["workflow_id"]: {
+                "domain": s.get("domain", ""),
+                "function": s.get("function", ""),
+                "category": s.get("category", ""),
+            }
+            for s in list_spokes_enriched()
+        }
+
+    def unclassified_agents(self) -> List[str]:
+        """列出「未分类」的 Agent。供巡检/自检调用。"""
+        return list_unclassified()
 
     def register_capabilities(self, agent_id: str, capabilities_json: str) -> None:
         """

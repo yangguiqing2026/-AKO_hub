@@ -1,0 +1,34 @@
+# ============================================================
+# agent_names.yaml — Agent 中英文名称对照表
+# ============================================================
+# 职责：总控台 Agent 卡片显示的中文名称。
+# 前端 /api/governance/overview 依此映射返回 name_zh。
+# ============================================================
+
+agents:
+  AKO_hub: 总线调度中枢
+  AKO_architect_agent: 建筑设计
+  AKO_drawing_inspector: 图纸质检
+  AKO_image_analyzer_agent: 图像分析
+  AKO_chat: AKO精灵
+  AKO_reports: 报表生成
+  AKO_business_agent: 商业作战指挥
+  AKO_quote_agent: 报价引擎
+  AKO_media_agent: 媒体内容营销
+  AKO_layout_agent: 智能排版
+  AKO_form_extractor: 表单数据提取
+  AKO_netwatch_agent: 网络骑兵
+  AKO_knowledge: 知识库
+  AKO_law_agent: 法律合规
+  AKO_audit_agent: 审计
+  AKO_client_profile_agent: 客户画像
+  AKO_clinic_agent: 集群健康诊疗
+  AKO_cluster_guardian_agent: 集群巡检
+  AKO_devil_agent: 魔鬼
+  AKO_file_tag_manager: 文件标签管理
+  AKO_git_push_agent: Git推送
+  AKO_guardian_agent: 安全守卫
+  AKO_kb_agent: 知识库管理
+  AKO_qc_agent: 质检
+  AKO_registry_agent: 注册中心
+  AKO_review_agent: 审查Saas

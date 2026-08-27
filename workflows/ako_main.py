@@ -163,9 +163,9 @@ def _route_by_intent(intent: str) -> List[str]:
     if any(kw in intent_lower for kw in ["图纸", "质检", "审查", "标注"]):
         return ["AKO_drawing_inspector"]
     if any(kw in intent_lower for kw in ["图像", "分析", "缺陷", "识别"]):
-        return ["AKO_image_analyzer"]
+        return ["AKO_image_analyzer_agent"]
     if "编排" in intent_lower or "全流程" in intent_lower:
-        return ["AKO_architect_agent", "AKO_drawing_inspector", "AKO_image_analyzer"]
+        return ["AKO_architect_agent", "AKO_drawing_inspector", "AKO_image_analyzer_agent"]
 
     return []
 
