@@ -191,8 +191,8 @@ body {
       var tier = x.quality_tier || "C";
       var tip = (zh ? zh + " · " : "") + x.agent_id + " · " + layer + " · " + tier + "级 · "
         + (x.lifecycle_state || "") + " · " + (online ? "在线" : "离线") + " · " + hbAge(x.last_heartbeat);
-      var bg = online ? ("linear-gradient(145deg, " + hexToRgba(color, 0.38) + ", #2D2824 82%)") : "#2D2824";
-      html += '<div class="heatmap-cell ' + (online ? "" : "offline") + '" title="' + esc(tip) + '" style="background:' + bg + ';border-left:3px solid ' + (online ? color : "#5a5a5a") + '">'
+      var bg = online ? ("linear-gradient(145deg, " + hexToRgba(color, 0.60) + ", #2D2824 88%)") : "#2D2824";
+      html += '<div class="heatmap-cell ' + (online ? "" : "offline") + '" title="' + esc(tip) + '" style="background:' + bg + ';border-left:5px solid ' + (online ? color : "#5a5a5a") + '">'
         + '<span class="agent-name">' + esc(name) + '</span>'
         + '<span class="hb-dot ' + (online ? "hb-on" : "hb-off") + '"></span>'
         + '<span class="agent-id">' + esc(x.agent_id) + ' · ' + esc(layer) + '</span>'

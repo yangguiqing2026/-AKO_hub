@@ -783,10 +783,14 @@ function drawTopology() {
     ctx.setLineDash([]);
     const lx = cx + ringR[layer] * Math.cos(-Math.PI / 2);
     const ly = cy + ringR[layer] * Math.sin(-Math.PI / 2);
-    ctx.fillStyle = (topo.layer_colors && topo.layer_colors[layer]) || '#A08C64';
+    const labelY = ly - 26;
     ctx.font = 'bold 11px "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(layer, lx, ly - 9);
+    const lw = ctx.measureText(layer).width;
+    ctx.fillStyle = 'rgba(30,31,28,0.85)';
+    ctx.fillRect(lx - lw / 2 - 6, labelY - 10, lw + 12, 15);
+    ctx.fillStyle = (topo.layer_colors && topo.layer_colors[layer]) || '#A08C64';
+    ctx.fillText(layer, lx, labelY);
   });
 
   // 节点坐标预计算（环上均布）
@@ -893,6 +897,10 @@ function drawTopology() {
     ctx.font = '9px "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(a.name_zh || a.agent_id || '?', p.x, p.y + 23);
+    var en = (a.agent_id || '').replace('_agent', '').replace('AKO_', '');
+    ctx.fillStyle = online ? 'rgba(160,160,160,0.9)' : 'rgba(128,128,128,0.7)';
+    ctx.font = '7px "Consolas", monospace';
+    ctx.fillText(en, p.x, p.y + 34);
   });
 
   // 5) Hub 圆心

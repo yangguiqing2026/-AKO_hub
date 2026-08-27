@@ -751,18 +751,16 @@ async def operator():
 async def governor():
     """AKO 治理指挥室页面入口（老板视图，role=governor）。"""
     f = STATIC_DIR / "governor.html"
-    if f.exists():
-        return f.read_text(encoding="utf-8")
-    return "<h1>AKO 治理指挥室</h1><p>governor.html 尚未构建。</p>"
+    html = f.read_text(encoding="utf-8") if f.exists() else "<h1>AKO 治理指挥室</h1><p>governor.html 尚未构建。</p>"
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/heatmap", response_class=HTMLResponse)
 async def heatmap_page():
     """AKO 热力总览独立页（全部已登记实体卡片，三色分层）。"""
     f = STATIC_DIR / "heatmap.html"
-    if f.exists():
-        return f.read_text(encoding="utf-8")
-    return "<h1>AKO 热力总览</h1><p>heatmap.html 尚未构建。</p>"
+    html = f.read_text(encoding="utf-8") if f.exists() else "<h1>AKO 热力总览</h1><p>heatmap.html 尚未构建。</p>"
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
 
 
 # ── 治理拓扑（三层同心圆 + 实际连接） ─────────────────────────────
