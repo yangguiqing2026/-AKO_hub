@@ -226,6 +226,9 @@ body {
 }
 
 /* 热力图 */
+
+.heatmap-body { flex: 1; overflow-y: auto; min-height: 0; }
+.heatmap-body.collapsed { display: none; }
 .heatmap-panel {
   flex: 0.8;
   padding: 12px 16px;
@@ -589,7 +592,7 @@ body {
 
     <!-- 拓扑图 -->
     <div class="topology-panel">
-      <div class="topology-title">全局工单流转拓扑图（三层同心圆：圆心 Hub → 知识层 → 运维层 → 工具层）</div>
+      <div class="topology-title">全局工单流转拓扑图</div>
       <div class="topology-legend">
         <span><span class="legend-dot" style="background:#B99B5F"></span> 知识层</span>
         <span><span class="legend-dot" style="background:#A08C64"></span> 运维层</span>
@@ -602,11 +605,13 @@ body {
 
     <!-- 热力图 -->
     <div class="heatmap-panel">
-      <div class="heatmap-title">
-        <span>Agent 总览热力（36 实体 · 三色分层：知识层 / 运维层 / 工具层）</span>
-        <span style="font-size:11px;color:var(--amber-gold);">悬停查看详情</span>
+      <div class="heatmap-title" style="cursor:pointer;" onclick="toggleHeatmap()">
+        <span>Agent 总览热力</span>
+        <span style="font-size:11px;color:var(--amber-gold);">点击折叠 / 悬停查看详情 <b id="heatmap-toggle">▲</b></span>
       </div>
-      <div class="heatmap-grid" id="heatmap-grid"></div>
+      <div id="heatmap-body" class="heatmap-body">
+        <div class="heatmap-grid" id="heatmap-grid"></div>
+      </div>
     </div>
 
     <!-- 审计面板 -->
@@ -729,9 +734,10 @@ function drawTopology() {
   const canvas = document.getElementById('topology-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const rect = canvas.parentElement.getBoundingClientRect();
+  const panel = canvas.parentElement;
+  const rect = panel.getBoundingClientRect();
   canvas.width = rect.width;
-  canvas.height = 560;
+  canvas.height = Math.max(rect.height, 360);
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
@@ -930,6 +936,21 @@ drawTopology();
     return Math.floor(diff / 86400000) + "天前心跳";
   }
 
+  function hexToRgba(hex, alpha) {
+    var m = /^#([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return "rgba(160,140,100," + alpha + ")";
+    var n = parseInt(m[1], 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + alpha + ")";
+  }
+
+  function toggleHeatmap() {
+    var body = $id("heatmap-body");
+    var t = $id("heatmap-toggle");
+    if (!body) return;
+    body.classList.toggle("collapsed");
+    if (t) t.textContent = body.classList.contains("collapsed") ? "▼" : "▲";
+  }
+
   function renderHeatmap(list) {
     var grid = $id("heatmap-grid");
     if (!grid) return;
@@ -954,7 +975,7 @@ drawTopology();
         var tier = x.quality_tier || 'C';
         var tip = (zh ? zh + " · " : "") + x.agent_id + " · " + layer + " · " + tier + "级 · "
           + (x.lifecycle_state || "") + " · " + (online ? "在线" : "离线") + " · " + hbAge(x.last_heartbeat);
-        var bg = online ? ("linear-gradient(145deg, " + color + "55, #2D2824 78%)") : "none";
+        var bg = online ? ("linear-gradient(145deg, " + hexToRgba(color, 0.38) + ", #2D2824 80%)") : "#2D2824";
         html += '<div class="heatmap-cell ' + (online ? 'online-layer' : 'offline') + '" title="' + esc(tip)
           + '" style="background:' + bg + ';border-left:3px solid ' + (online ? color : '#5a5a5a') + '">'
           + '<span class="agent-name">' + esc(name) + '</span>'
@@ -976,7 +997,6 @@ drawTopology();
     });
     grid.innerHTML = html || '<div class="heatmap-cell offline"><span class="agent-name">暂无</span><span class="agent-load">—</span></div>';
   }
-
   function renderSecurity(o) {
     var title = $id("sec-title"), body = $id("sec-body");
     var alerts = o.alerts || [];
@@ -1042,7 +1062,7 @@ drawTopology();
       var r = await fetch("/api/governance/overview");
       var o = await r.json();
       renderMetrics(o);
-      renderHeatmap(o.agents.list || []);
+      if (!window.TOPO) renderHeatmap(o.agents.list || []);
       renderSecurity(o);
       renderAudit(o);
       renderHubNodes(o.hub_nodes || []);
