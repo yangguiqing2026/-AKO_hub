@@ -246,6 +246,11 @@ body {
   gap: 6px;
   flex: 1;
 }
+
+.heatmap-cell.online-layer { color: var(--cream-gold); }
+.heatmap-cell.online-layer .agent-name { color: var(--cream-gold); }
+.heatmap-cell.offline { background: var(--deep-brown-card); border-left: 3px solid #5a5a5a; }
+
 .heatmap-cell {
   background: var(--deep-brown-card);
   border-radius: 6px;
@@ -582,19 +587,6 @@ body {
   <!-- 中区：全局态势 -->
   <div class="center-gov">
 
-    <!-- 已注册 Agent 卡片（三层分类） -->
-    <div class="topology-panel">
-      <div class="topology-title">已注册 Agent 卡片（35 实体 · 三色分层）</div>
-      <div class="topology-legend">
-        <span><span class="legend-dot" style="background:#B99B5F"></span> 知识层</span>
-        <span><span class="legend-dot" style="background:#A08C64"></span> 运维层</span>
-        <span><span class="legend-dot" style="background:#7A9E7E"></span> 工具层</span>
-        <span><span class="legend-dot online"></span> 在线</span>
-        <span><span class="legend-dot offline"></span> 离线</span>
-      </div>
-      <div class="agent-cards" id="agent-cards"></div>
-    </div>
-
     <!-- 拓扑图 -->
     <div class="topology-panel">
       <div class="topology-title">全局工单流转拓扑图（三层同心圆：圆心 Hub → 知识层 → 运维层 → 工具层）</div>
@@ -611,7 +603,7 @@ body {
     <!-- 热力图 -->
     <div class="heatmap-panel">
       <div class="heatmap-title">
-        <span>Agent 负载热力图</span>
+        <span>Agent 总览热力（36 实体 · 三色分层：知识层 / 运维层 / 工具层）</span>
         <span style="font-size:11px;color:var(--amber-gold);">悬停查看详情</span>
       </div>
       <div class="heatmap-grid" id="heatmap-grid"></div>
@@ -942,8 +934,40 @@ drawTopology();
     var grid = $id("heatmap-grid");
     if (!grid) return;
     var html = "";
+    var topo = window.TOPO;
+    if (topo && topo.rings) {
+      // 拓扑数据驱动：hub 圆心 + 三层（知识/运维/工具），层色区分，在线呼吸
+      var order = ['知识层', '运维层', '工具层'];
+      var items = [];
+      if (topo.hub) { items.push(topo.hub); }
+      order.forEach(function (layer) {
+        (topo.rings[layer] || []).forEach(function (a) { items.push(a); });
+      });
+      items.forEach(function (x) {
+        var zh = x.name_zh || "";
+        var name = zh || x.agent_id || "?";
+        var online = x.online;
+        var color = x.color || '#A08C64';
+        var load = x.cpu_percent;
+        var txt = load == null ? (online ? "在线" : "离线") : Math.round(load) + "%";
+        var layer = x.layer === '圆心' ? '圆心' : (x.layer || '工具层');
+        var tier = x.quality_tier || 'C';
+        var tip = (zh ? zh + " · " : "") + x.agent_id + " · " + layer + " · " + tier + "级 · "
+          + (x.lifecycle_state || "") + " · " + (online ? "在线" : "离线") + " · " + hbAge(x.last_heartbeat);
+        var bg = online ? ("linear-gradient(145deg, " + color + "55, #2D2824 78%)") : "none";
+        html += '<div class="heatmap-cell ' + (online ? 'online-layer' : 'offline') + '" title="' + esc(tip)
+          + '" style="background:' + bg + ';border-left:3px solid ' + (online ? color : '#5a5a5a') + '">'
+          + '<span class="agent-name">' + esc(name) + '</span>'
+          + '<span class="agent-id">' + esc(x.agent_id) + ' · ' + esc(layer) + '</span>'
+          + '<span class="hb-dot ' + (online ? "hb-on" : "hb-off") + '"></span>'
+          + '<span class="agent-load">' + esc(txt) + ' · ' + esc(tier) + '</span></div>';
+      });
+      grid.innerHTML = html || '<div class="heatmap-cell offline"><span class="agent-name">暂无</span><span class="agent-load">—</span></div>';
+      return;
+    }
+    // 降级：overview 列表（旧路径）
     list.forEach(function (x) {
-      var zh = x.name_zh || "";
+      var zh = x.name_zh || x.display_name || "";
       var name = zh || x.name || x.agent_id || "?";
       var online = x.online;
       var txt = x.cpu_percent == null ? "离线" : Math.round(x.cpu_percent) + "%";
@@ -1028,7 +1052,7 @@ drawTopology();
         var tr = await fetch("/api/governance/topology");
         var t = await tr.json();
         window.TOPO = t;
-        renderAgentCards(t);
+        renderHeatmap(t.rings ? [] : []);
         drawTopology();
       } catch (te) { /* 拓扑数据暂不可用 */ }
     } catch (e) {

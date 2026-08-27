@@ -152,46 +152,83 @@ def _heartbeat_status_map() -> Dict[str, Dict[str, Any]]:
     return mapping
 
 
+def _norm_agent_key(agent_id: str) -> str:
+    """归一化键：AKO_xxx_agent 与 AKO_xxx 视为同一实体（registry 键 ↔ hub 键）。"""
+    return agent_id[:-6] if agent_id.endswith("_agent") else agent_id
+
+
 def _merged_state() -> dict:
-    registry = _load_registry()
+    """合并总控台 Agent 状态（去重归一，registry 登记实体为权威骨架）。
+
+    去重规则：
+    1. registry 已登记实体（35）为骨架，心跳按归一键叠加在线状态；
+    2. hub 内置 spoke（chat/reports/form_extractor/工作流/geo）保留但标记 builtin；
+    3. 心跳孤儿（未登记且非内置，如已注销的 AKO_review_agent）丢弃，不再出现。
+    """
     state = _ensure_state_file()
-    agents = state.get("agents", {})
+    ps_agents = state.get("agents", {})
+    names = _load_agent_names()
+    hb = _heartbeat_status_map()
+    hb_norm: Dict[str, Dict[str, Any]] = {}
+    for k, v in hb.items():
+        hb_norm.setdefault(_norm_agent_key(k), v)
 
-    for wf_id, info in registry.items():
-        if wf_id not in agents:
-            agents[wf_id] = {
-                "stage": "S1_init",
-                "name": info.get("name", wf_id),
-                "state": "S1_init",
-                "qc_score": None,
-                "veto_fails": [],
-                "updated_at": None,
-            }
+    agents: Dict[str, Any] = {}
 
-    # 合并心跳 agent：为流水线 agent 叠加在线状态，同时让仅在心跳库注册的 agent 也出现在看板
-    for agent_id, hb in _heartbeat_status_map().items():
-        entry = agents.get(agent_id)
-        if entry is None:
-            entry = {
-                "stage": "S1_init",
-                "name": hb.get("display_name") or agent_id,
-                "state": "S1_init",
-                "qc_score": None,
-                "veto_fails": [],
-                "updated_at": None,
-                "heartbeat_only": True,
-            }
-            agents[agent_id] = entry
-        entry["online"] = bool(hb.get("online"))
-        entry["last_heartbeat"] = hb.get("last_heartbeat")
-        entry["agent_type"] = hb.get("agent_type")
-        entry["display_name"] = hb.get("display_name") or entry.get("name", agent_id)
-        entry["cpu_percent"] = hb.get("cpu_percent")
-        entry["memory_mb"] = hb.get("memory_mb")
-        entry["last_task_status"] = hb.get("last_task_status")
+    for m in _registry_agents():
+        aid = m.get("agent_id", "")
+        if not aid:
+            continue
+        nk = _norm_agent_key(aid)
+        display = names.get(aid) or names.get(nk) or m.get("human_readable_name", aid)
+        hbe = hb_norm.get(nk, {})
+        ps = ps_agents.get(aid) or ps_agents.get(nk) or {}
+        agents[aid] = {
+            "stage": ps.get("stage", "S1_init"),
+            "name": display,
+            "state": ps.get("state", "S1_init"),
+            "qc_score": ps.get("qc_score"),
+            "veto_fails": ps.get("veto_fails", []),
+            "updated_at": ps.get("updated_at"),
+            "agent_id": aid,
+            "display_name": display,
+            "domain": m.get("domain", ""),
+            "quality_tier": m.get("quality_tier", "C"),
+            "deployed_env": m.get("deployed_env", "staging"),
+            "lifecycle_state": m.get("lifecycle_state", "staging"),
+            "online": bool(hbe.get("online")),
+            "last_heartbeat": hbe.get("last_heartbeat"),
+            "agent_type": hbe.get("agent_type"),
+            "cpu_percent": hbe.get("cpu_percent"),
+            "memory_mb": hbe.get("memory_mb"),
+            "last_task_status": hbe.get("last_task_status"),
+        }
 
-    state["agents"] = agents
-    return state
+    # hub 内置 spoke：非独立实体，但保留在总控台（与 registry 归一键去重）
+    for wf_id, info in (_load_registry() or {}).items():
+        nk = _norm_agent_key(wf_id)
+        if any(_norm_agent_key(a) == nk for a in agents):
+            continue
+        hbe = hb_norm.get(nk, {})
+        agents[wf_id] = {
+            "stage": "S1_init",
+            "name": info.get("name", wf_id),
+            "state": "S1_init",
+            "qc_score": None,
+            "veto_fails": [],
+            "updated_at": None,
+            "agent_id": wf_id,
+            "display_name": info.get("name", wf_id),
+            "builtin": True,
+            "online": bool(hbe.get("online")),
+            "last_heartbeat": hbe.get("last_heartbeat"),
+            "agent_type": hbe.get("agent_type"),
+            "cpu_percent": hbe.get("cpu_percent"),
+            "memory_mb": hbe.get("memory_mb"),
+            "last_task_status": hbe.get("last_task_status"),
+        }
+
+    return {"agents": agents}
 
 
 # ── 任务管理（转发 hub_api） ─────────────────────────────────────
