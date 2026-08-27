@@ -16,6 +16,15 @@ QC_DIR = AKO_ROOT / "AKO_qc_agent"
 REGISTRY_DIR = AKO_ROOT / "AKO_registry_agent"
 AUDIT_DIR = AKO_ROOT / "AKO_audit_agent"
 GIT_PUSH_DIR = AKO_ROOT / "AKO_git_push_agent"
+KNOWLEDGE_DIR = AKO_ROOT / "AKO_knowledge"
+GUARDIAN_DIR = AKO_ROOT / "AKO_guardian_agent"
+WEB_CONSULT_DIR = AKO_ROOT / "AKO_web_consult_agent"
+IDENTITY_DIR = AKO_ROOT / "AKO_identity_service"
+MONITOR_DIR = AKO_ROOT / "AKO_monitor_agent"
+
+# 自动重启约束：连续 OFFLINE_RESTART_AFTER 次判定后重启，每小时最多 MAX_RESTARTS_PER_HOUR 次
+OFFLINE_RESTART_AFTER = 2
+MAX_RESTARTS_PER_HOUR = 3
 
 # registry agent uses its own venv python
 REGISTRY_PY = REGISTRY_DIR / ".venv" / "Scripts" / "python.exe"
@@ -28,6 +37,17 @@ LAW_DIR = AKO_ROOT / "AKO_law_agent"
 # law venv fully repaired 2026-08-25: pyvenv.cfg fixed + all deps upgraded to cp312
 LAW_PY = Path(r"D:\AKO\AKO_law_agent\.venv\Scripts\python.exe")
 
+# knowledge uses its own venv (python 3.9+), fallback shared env
+KNOWLEDGE_PY = KNOWLEDGE_DIR / ".venv" / "Scripts" / "python.exe"
+if not KNOWLEDGE_PY.exists():
+    KNOWLEDGE_PY = Path(sys.executable)
+
+# guardian uses its own venv
+GUARDIAN_PY = GUARDIAN_DIR / ".venv" / "Scripts" / "python.exe"
+if not GUARDIAN_PY.exists():
+    GUARDIAN_PY = Path(sys.executable)
+
+
 class AgentProc:
     def __init__(self, agent_id: str, cmd, cwd, probe):
         self.agent_id = agent_id
@@ -35,6 +55,8 @@ class AgentProc:
         self.cwd = str(cwd)
         self.probe = probe
         self.proc: subprocess.Popen | None = None
+        self.offline_streak: int = 0
+        self.restarts: list[float] = []  # 重启时间戳（用于每小时限流）
 
     def start(self) -> None:
         self.proc = subprocess.Popen(
@@ -43,6 +65,22 @@ class AgentProc:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+
+    def restart(self, now: float) -> bool:
+        """受限自动重启：每小时最多 MAX_RESTARTS_PER_HOUR 次。返回是否执行了重启。"""
+        self.restarts = [t for t in self.restarts if now - t < 3600]
+        if len(self.restarts) >= MAX_RESTARTS_PER_HOUR:
+            return False
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+        self.start()
+        self.restarts.append(now)
+        self.offline_streak = 0
+        return True
 
     def is_online(self) -> bool:
         if self.proc is None:
@@ -71,6 +109,21 @@ def probe_audit(ap: AgentProc) -> bool:
 
 def probe_law(ap: AgentProc) -> bool:
     return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:8001/health")
+
+def probe_knowledge(ap: AgentProc) -> bool:
+    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:8000/docs")
+
+def probe_guardian(ap: AgentProc) -> bool:
+    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:5033/health")
+
+def probe_web_consult(ap: AgentProc) -> bool:
+    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:7863/docs")
+
+def probe_identity(ap: AgentProc) -> bool:
+    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:5025/health")
+
+def probe_monitor(ap: AgentProc) -> bool:
+    return ap.proc is not None and ap.proc.poll() is None
 
 def post_heartbeat(agent_id: str, alive: bool) -> None:
     try:
@@ -128,6 +181,38 @@ def main() -> None:
             LAW_DIR,
             probe_law,
         ),
+        AgentProc(
+            "AKO_knowledge",
+            [str(KNOWLEDGE_PY), "-m", "uvicorn", "knowledge_service:app",
+             "--host", "127.0.0.1", "--port", "8000"],
+            KNOWLEDGE_DIR,
+            probe_knowledge,
+        ),
+        AgentProc(
+            "AKO_guardian_agent",
+            [str(GUARDIAN_PY), "app.py"],
+            GUARDIAN_DIR,
+            probe_guardian,
+        ),
+        AgentProc(
+            "AKO_web_consult_agent",
+            [str(Path(sys.executable)), "-m", "uvicorn", "src.main:app",
+             "--host", "127.0.0.1", "--port", "7863"],
+            WEB_CONSULT_DIR,
+            probe_web_consult,
+        ),
+        AgentProc(
+            "AKO_identity_service",
+            [str(Path(sys.executable)), "app.py", "--port", "5025"],
+            IDENTITY_DIR,
+            probe_identity,
+        ),
+        AgentProc(
+            "AKO_monitor_agent",
+            [str(Path(sys.executable)), "main.py"],
+            MONITOR_DIR,
+            probe_monitor,
+        ),
     ]
 
     # start real processes
@@ -156,10 +241,19 @@ def main() -> None:
     try:
         while True:
             row = []
+            now = time.time()
             for ap in agents:
                 online = ap.is_online()
                 if online:
+                    ap.offline_streak = 0
                     post_heartbeat(ap.agent_id, alive=True)
+                else:
+                    ap.offline_streak += 1
+                    if ap.offline_streak >= OFFLINE_RESTART_AFTER:
+                        restarted = ap.restart(now)
+                        if restarted:
+                            print(f"[supervisor] auto-restart {ap.agent_id} (offline x{ap.offline_streak})")
+                            online = True
                 state = "ONLINE" if online else "OFFLINE"
                 row.append(f"{ap.agent_id}={state}")
             row.append("AKO_git_push_agent=OFFLINE(cli)")

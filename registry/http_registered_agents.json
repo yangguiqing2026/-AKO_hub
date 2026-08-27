@@ -133,7 +133,7 @@
       "entry_point": "agents/ako_law_adapter.py",
       "interface_type": "importlib",
       "health_endpoint": "http://localhost:8001/health",
-      "registered_at": "2026-08-25T05:57:35.530918+00:00",
+      "registered_at": "2026-08-27T01:43:55.964265+00:00",
       "lifecycle_state": "production",
       "tags": [
         "legal",
@@ -187,7 +187,7 @@
         "registered": true
       }
     },
-    "registered_at": "2026-08-25T13:57:37.575535",
+    "registered_at": "2026-08-27T09:43:57.990224",
     "status": "active"
   }
 }
