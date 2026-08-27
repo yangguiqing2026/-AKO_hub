@@ -33,3 +33,14 @@ agents:
   AKO_registry_agent: 注册中心
   AKO_identity_service: 身份认证层
   AKO_monitor_agent: 熔断监控
+  AKO_config_audit_agent: 配置审计
+  AKO_dependency_map_agent: 依赖图谱
+  AKO_evolution_agent: 体系进化
+  AKO_art_agent: 美术评估
+  AKO_chart_agent: 图表生成
+  AKO_pack_agent: 安装包构建
+  AKO_pipeline_agent: 流水线编排
+  AKO_review_runner_agent: 代码审查
+  AKO_standard_agent: 企业标准
+  AKO_web_consult_agent: 网站咨询
+  AKO_writer_agent: 技术写作
