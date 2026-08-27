@@ -1,17 +1,14 @@
 # ============================================================
 # agent_layers.yaml — 三层分层名单（老板看板拓扑/卡片数据源）
 # ============================================================
-# 该文件为分层权威名单：列名由 AKO_studio 指定，未列入者按域规则回退
-# （基座域→知识层 / 运维域→运维层 / 其余→工具层）。
-# hub 恒为圆心，不入任何层。
+# AKO_studio 指定名单（2026-08-27）：知识层=knowledge+kb；
+# law 入运维层；writer 入工具层。hub 恒为圆心。
 # ============================================================
 
 layers:
   知识层:
     - AKO_knowledge_agent
     - AKO_kb_agent
-    - AKO_law_agent
-    - AKO_writer_agent
 
   运维层:
     - AKO_registry_agent
@@ -27,6 +24,7 @@ layers:
     - AKO_dependency_map_agent
     - AKO_monitor_agent
     - AKO_identity_service_agent
+    - AKO_law_agent
 
   工具层:
     - AKO_quote_agent
@@ -46,3 +44,4 @@ layers:
     - AKO_git_push_agent
     - AKO_review_runner_agent
     - AKO_file_tag_manager_agent
+    - AKO_writer_agent

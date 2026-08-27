@@ -129,9 +129,9 @@ body {
 <div class="page-title">Agent 总览热力</div>
 <div class="page-sub">全部已登记实体 · 三色分层：知识层 / 运维层 / 工具层 · 5 秒自动刷新</div>
 <div class="legend">
-  <span><span class="legend-dot" style="background:#B99B5F"></span> 知识层</span>
-  <span><span class="legend-dot" style="background:#A08C64"></span> 运维层</span>
-  <span><span class="legend-dot" style="background:#7A9E7E"></span> 工具层</span>
+  <span><span class="legend-dot" style="background:#D4A574"></span> 知识层</span>
+  <span><span class="legend-dot" style="background:#EBDAB9"></span> 运维层</span>
+  <span><span class="legend-dot" style="background:#A08C64"></span> 工具层</span>
   <span><span class="legend-dot" style="background:#2D2824;border:1px solid #5a5a5a"></span> 离线</span>
   <span><span class="legend-dot" style="background:#7ec699"></span> 在线呼吸点</span>
 </div>
@@ -184,7 +184,7 @@ body {
       var zh = x.name_zh || "";
       var name = zh || x.agent_id || "?";
       var online = x.online;
-      var color = x.color || "#A08C64";
+      var color = x.heatmap_color || x.color || "#A08C64";
       var load = x.cpu_percent;
       var txt = load == null ? (online ? "在线" : "离线") : Math.round(load) + "%";
       var layer = x.layer === "圆心" ? "圆心" : (x.layer || "工具层");

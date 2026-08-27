@@ -615,6 +615,7 @@ body {
         <span><span class="legend-dot" style="background:#7A9E7E"></span> 工具层</span>
         <span><span class="legend-dot online"></span> 心跳连接</span>
         <span><span class="legend-dot" style="background:#D4A574"></span> 数据/调用连接</span>
+        <span><span class="legend-dot" style="background:#e5a020"></span> 工单流转方向（动画点）</span>
       </div>
       <canvas id="topology-canvas" style="height:560px;"></canvas>
     </div>
@@ -742,15 +743,16 @@ function drawTopology() {
   const ctx = canvas.getContext('2d');
   const panel = canvas.parentElement;
   const rect = panel.getBoundingClientRect();
-  // 正方形画布居中：任何容器比例下同心圆恒为正圆，消除拉扁
+  // 正方形画布居中：任何容器比例下同心圆恒为正圆
   const size = Math.max(320, Math.min(rect.width, rect.height));
-  canvas.width = size;
-  canvas.height = size;
-  canvas.style.width = size + "px";
-  canvas.style.height = size + "px";
-  canvas.style.margin = "0 auto";
-  canvas.style.display = "block";
-  const ringH = size;
+  if (canvas.width !== size) {
+    canvas.width = size;
+    canvas.height = size;
+    canvas.style.width = size + "px";
+    canvas.style.height = size + "px";
+    canvas.style.margin = "0 auto";
+    canvas.style.display = "block";
+  }
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
@@ -760,15 +762,17 @@ function drawTopology() {
     ctx.font = '12px "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('暂无拓扑数据（登录后加载）', w / 2, h / 2);
+    requestAnimationFrame(drawTopology);
     return;
   }
 
   const cx = w / 2, cy = h / 2;
   const now = Date.now() / 1000;
-  const R = ringH / 2 - 65;
+  const R = Math.min(w, h) / 2 - 65;
   const ringR = { '知识层': R * 0.40, '运维层': R * 0.66, '工具层': R * 0.92 };
   const order = ['知识层', '运维层', '工具层'];
 
+  // 三层同心圆环底 + 环标签
   order.forEach(function (layer) {
     ctx.beginPath();
     ctx.arc(cx, cy, ringR[layer], 0, Math.PI * 2);
@@ -785,6 +789,7 @@ function drawTopology() {
     ctx.fillText(layer, lx, ly - 9);
   });
 
+  // 节点坐标预计算（环上均布）
   const pos = {};
   order.forEach(function (layer) {
     const list = topo.rings[layer] || [];
@@ -795,6 +800,29 @@ function drawTopology() {
     });
   });
 
+  // 边的路径与方向点：工单流转动画（白皮书 §4.5.1 工单标签沿连线移动）
+  const flowSpeed = 0.25;  // 周期数/秒
+  function pointOnEdge(e, t) {
+    // 心跳边为直线 hub→agent；数据/调用边为二次曲线
+    if (e.type === 'heartbeat') {
+      const p = pos[e.from];
+      if (!p) return null;
+      return { x: cx + (p.x - cx) * t, y: cy + (p.y - cy) * t };
+    }
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return null;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.max(Math.hypot(dx, dy), 1);
+    const nx = -dy / d, ny = dx / d;
+    const cpx = (a.x + b.x) / 2 + nx * 24, cpy = (a.y + b.y) / 2 + ny * 24;
+    const mt = 1 - t;
+    return {
+      x: mt * mt * a.x + 2 * mt * t * cpx + t * t * b.x,
+      y: mt * mt * a.y + 2 * mt * t * cpy + t * t * b.y
+    };
+  }
+
+  // 1) 心跳边（在线实体 → Hub）
   topo.edges.forEach(function (e) {
     if (e.type !== 'heartbeat') return;
     const p = pos[e.from];
@@ -807,6 +835,7 @@ function drawTopology() {
     ctx.stroke();
   });
 
+  // 2) 数据/调用边（虚线=有一端离线）
   topo.edges.forEach(function (e) {
     if (e.type === 'heartbeat') return;
     const a = pos[e.from], b = pos[e.to];
@@ -825,6 +854,22 @@ function drawTopology() {
     ctx.setLineDash([]);
   });
 
+  // 3) 工单流转方向动画点（沿边移动，方向 from → to）
+  topo.edges.forEach(function (e, i) {
+    if (!e.online) return;
+    const phase = (now * flowSpeed + i * 0.37) % 1;
+    const pt = pointOnEdge(e, phase);
+    if (!pt) return;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = e.type === 'heartbeat' ? '#7ec699' : '#e5a020';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(235,218,185,0.5)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  });
+
+  // 4) 节点（按层着色：知识熔金 / 运维琥珀 / 工具柔和绿；离线深褐）
   Object.keys(pos).forEach(function (id) {
     const p = pos[id], a = p.a;
     const online = a.online;
@@ -850,6 +895,7 @@ function drawTopology() {
     ctx.fillText(a.name_zh || a.agent_id || '?', p.x, p.y + 23);
   });
 
+  // 5) Hub 圆心
   ctx.beginPath();
   ctx.arc(cx, cy, 20, 0, Math.PI * 2);
   ctx.fillStyle = '#B99B5F';
@@ -868,6 +914,8 @@ function drawTopology() {
     ctx.lineWidth = 1;
     ctx.stroke();
   }
+
+  requestAnimationFrame(drawTopology);
 }
 
 function renderAgentCards(topo) {

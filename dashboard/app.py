@@ -769,7 +769,9 @@ async def heatmap_page():
 
 # 分层规则（域→层）：基座域→知识层，运维域→运维层，其余→工具层；hub 为圆心不入环
 _DOMAIN_TO_LAYER = {"基座域": "知识层", "运维域": "运维层"}
+# 两套配色：拓扑图（同心圆环/节点）与热力总览（卡片）各自独立三色
 _LAYER_COLORS = {"知识层": "#B99B5F", "运维层": "#A08C64", "工具层": "#7A9E7E"}
+_HEATMAP_COLORS = {"知识层": "#D4A574", "运维层": "#EBDAB9", "工具层": "#A08C64"}
 _LAYERS_FILE = AKO_HUB_ROOT / "config" / "agent_layers.yaml"
 
 
@@ -869,6 +871,7 @@ async def governance_topology():
             "domain": m.get("domain", ""),
             "layer": layer,
             "color": _LAYER_COLORS.get(layer, "#A08C64"),
+            "heatmap_color": _HEATMAP_COLORS.get(layer, "#A08C64"),
             "lifecycle_state": m.get("lifecycle_state", "staging"),
             "quality_tier": m.get("quality_tier", "C"),
             "deployed_env": m.get("deployed_env", "staging"),
@@ -906,6 +909,7 @@ async def governance_topology():
         "hub": hub,
         "rings": rings,
         "layer_colors": _LAYER_COLORS,
+        "heatmap_colors": _HEATMAP_COLORS,
         "edges": edges,
         "counts": {k: len(v) for k, v in rings.items()},
         "total": len(by_id),
