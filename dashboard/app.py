@@ -756,6 +756,15 @@ async def governor():
     return "<h1>AKO 治理指挥室</h1><p>governor.html 尚未构建。</p>"
 
 
+@app.get("/heatmap", response_class=HTMLResponse)
+async def heatmap_page():
+    """AKO 热力总览独立页（全部已登记实体卡片，三色分层）。"""
+    f = STATIC_DIR / "heatmap.html"
+    if f.exists():
+        return f.read_text(encoding="utf-8")
+    return "<h1>AKO 热力总览</h1><p>heatmap.html 尚未构建。</p>"
+
+
 # ── 治理拓扑（三层同心圆 + 实际连接） ─────────────────────────────
 
 # 分层规则（域→层）：基座域→知识层，运维域→运维层，其余→工具层；hub 为圆心不入环

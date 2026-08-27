@@ -56,6 +56,19 @@ body {
 .metric-pill.alert .value { color: var(--warm-orange); animation: pulse 1.5s infinite; }
 .metric-pill.danger .value { color: var(--dark-red); animation: pulse 1.2s infinite; }
 
+
+.nav-btn {
+  padding: 8px 18px;
+  background: transparent;
+  color: var(--molten-gold);
+  border: 1px solid var(--molten-gold);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nav-btn:hover { background: color-mix(in srgb, var(--molten-gold) 20%, transparent); }
+
 .broadcast-btn {
   padding: 8px 18px;
   background: var(--molten-gold);
@@ -193,7 +206,7 @@ body {
 
 /* 拓扑图 */
 .topology-panel {
-  flex: 1.2;
+  flex: 1;
   position: relative;
   overflow: hidden;
 }
@@ -504,7 +517,10 @@ body {
       <span class="value" id="m-uptime">12d</span>
     </div>
   </div>
-  <button class="broadcast-btn" onclick="toggleEmergency()">🎙️ 全局广播</button>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <button class="nav-btn" onclick="location.href='/heatmap'">🔥 热力总览</button>
+    <button class="broadcast-btn" onclick="toggleEmergency()">🎙️ 全局广播</button>
+  </div>
 </div>
 
 <!-- 主体 -->
@@ -604,16 +620,6 @@ body {
     </div>
 
     <!-- 热力图 -->
-    <div class="heatmap-panel">
-      <div class="heatmap-title" id="heatmap-title" style="cursor:pointer;">
-        <span>Agent 总览热力</span>
-        <span style="font-size:11px;color:var(--amber-gold);">点击折叠 / 悬停查看详情 <b id="heatmap-toggle">▲</b></span>
-      </div>
-      <div id="heatmap-body" class="heatmap-body">
-        <div class="heatmap-grid" id="heatmap-grid"></div>
-      </div>
-    </div>
-
     <!-- 审计面板 -->
     <div class="audit-panel">
       <div class="audit-header" onclick="toggleAudit()">

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AKO 热力总览</title>
+<style>
+:root {
+  --deep-brown: #1e1f1c;
+  --near-black: #1e1f1c;
+  --deep-brown-card: #2d2e29;
+  --cream-gold: #c0c0c0;
+  --molten-gold: #e5a020;
+  --amber-gold: #a0a0a0;
+  --soft-green: #7ec699;
+  --dark-red: #e05252;
+  --warm-gray: #808080;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--near-black);
+  color: var(--cream-gold);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.command-bar {
+  height: 64px;
+  background: var(--deep-brown);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid color-mix(in srgb, var(--deep-brown) 90%, var(--molten-gold) 10%);
+  flex-shrink: 0;
+}
+.command-bar .logo { font-weight: 700; font-size: 16px; letter-spacing: 1px; color: var(--cream-gold); display: flex; align-items: center; gap: 10px; }
+.logo-img { height: 30px; width: 30px; object-fit: contain; }
+.command-bar .bar-right { display: flex; gap: 10px; align-items: center; }
+.nav-btn {
+  padding: 8px 18px;
+  background: transparent;
+  color: var(--molten-gold);
+  border: 1px solid var(--molten-gold);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nav-btn:hover { background: color-mix(in srgb, var(--molten-gold) 20%, transparent); }
+.user-tag { font-size: 12px; color: var(--amber-gold); }
+
+.page-title {
+  padding: 20px 24px 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--molten-gold);
+}
+.page-sub {
+  padding: 0 24px 14px;
+  font-size: 12px;
+  color: var(--amber-gold);
+}
+.legend { display: flex; gap: 14px; padding: 0 24px 14px; font-size: 12px; color: var(--amber-gold); flex-wrap: wrap; }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  padding: 0 24px 24px;
+}
+.heatmap-cell {
+  background: var(--deep-brown-card);
+  border-radius: 8px;
+  padding: 14px 14px 12px;
+  position: relative;
+  min-height: 92px;
+}
+.heatmap-cell.offline { background: var(--deep-brown-card); border-left: 3px solid #5a5a5a; }
+.agent-name { font-size: 14px; font-weight: 600; color: var(--cream-gold); }
+.agent-id { display: block; font-size: 11px; color: var(--amber-gold); margin-top: 5px; opacity: .9; }
+.agent-load { display: block; font-size: 11px; color: var(--amber-gold); margin-top: 6px; }
+.hb-dot { position: absolute; top: 14px; right: 14px; width: 9px; height: 9px; border-radius: 50%; }
+.hb-on { background: var(--soft-green); box-shadow: 0 0 6px var(--soft-green); }
+.hb-off { background: var(--warm-gray); }
+
+.login-overlay {
+  position: fixed; inset: 0;
+  background: rgba(30,31,28,0.92);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 99;
+}
+.login-box {
+  background: var(--deep-brown-card);
+  border: 1px solid color-mix(in srgb, var(--deep-brown-card) 85%, var(--molten-gold) 15%);
+  border-radius: 10px;
+  padding: 30px 36px;
+  text-align: center;
+}
+.login-box h2 { font-size: 16px; color: var(--molten-gold); margin-bottom: 6px; }
+.login-box p { font-size: 12px; color: var(--amber-gold); margin-bottom: 16px; }
+.login-box input {
+  width: 200px; padding: 9px 12px; font-size: 18px; letter-spacing: 6px; text-align: center;
+  background: #1e1f1c; color: var(--cream-gold);
+  border: 1px solid var(--amber-gold); border-radius: 6px; outline: none;
+}
+.login-box input:focus { border-color: var(--molten-gold); }
+.login-box button {
+  display: block; margin: 14px auto 0; padding: 8px 26px;
+  background: var(--molten-gold); color: var(--deep-brown);
+  border: none; border-radius: 8px; font-weight: 700; cursor: pointer;
+}
+.login-err { color: var(--dark-red); font-size: 12px; margin-top: 10px; min-height: 16px; }
+</style>
+</head>
+<body>
+
+<div class="command-bar">
+  <div class="logo"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO 热力总览</div>
+  <div class="bar-right">
+    <span class="user-tag" id="user-tag"></span>
+    <button class="nav-btn" onclick="location.href='/governor'">🏛 治理指挥室</button>
+  </div>
+</div>
+
+<div class="page-title">Agent 总览热力</div>
+<div class="page-sub">全部已登记实体 · 三色分层：知识层 / 运维层 / 工具层 · 5 秒自动刷新</div>
+<div class="legend">
+  <span><span class="legend-dot" style="background:#B99B5F"></span> 知识层</span>
+  <span><span class="legend-dot" style="background:#A08C64"></span> 运维层</span>
+  <span><span class="legend-dot" style="background:#7A9E7E"></span> 工具层</span>
+  <span><span class="legend-dot" style="background:#2D2824;border:1px solid #5a5a5a"></span> 离线</span>
+  <span><span class="legend-dot" style="background:#7ec699"></span> 在线呼吸点</span>
+</div>
+
+<div class="heatmap-grid" id="heatmap-grid"></div>
+
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <h2>治理指挥室指纹登录</h2>
+    <p>输入 6 位数字指纹进入热力总览</p>
+    <input id="fingerprint-input" type="password" maxlength="6" inputmode="numeric" autocomplete="off">
+    <button id="login-btn">进入</button>
+    <div class="login-err" id="login-error"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  function $id(x) { return document.getElementById(x); }
+  function esc(x) { return String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function hbAge(ts) {
+    if (!ts) return "无心跳";
+    var d = (Date.now() - new Date(ts).getTime()) / 1000;
+    if (d < 60) return Math.round(d) + "s 前";
+    if (d < 3600) return Math.round(d / 60) + "m 前";
+    return Math.round(d / 3600) + "h 前";
+  }
+  function hexToRgba(hex, alpha) {
+    var m = /^#([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return "rgba(160,140,100," + alpha + ")";
+    var n = parseInt(m[1], 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + alpha + ")";
+  }
+
+  var currentUser = "";
+
+  function renderHeatmap() {
+    var grid = $id("heatmap-grid");
+    var topo = window.TOPO;
+    if (!grid || !topo || !topo.rings) return;
+    var order = ["知识层", "运维层", "工具层"];
+    var items = [];
+    if (topo.hub) items.push(topo.hub);
+    order.forEach(function (layer) {
+      (topo.rings[layer] || []).forEach(function (a) { items.push(a); });
+    });
+    var html = "";
+    items.forEach(function (x) {
+      var zh = x.name_zh || "";
+      var name = zh || x.agent_id || "?";
+      var online = x.online;
+      var color = x.color || "#A08C64";
+      var load = x.cpu_percent;
+      var txt = load == null ? (online ? "在线" : "离线") : Math.round(load) + "%";
+      var layer = x.layer === "圆心" ? "圆心" : (x.layer || "工具层");
+      var tier = x.quality_tier || "C";
+      var tip = (zh ? zh + " · " : "") + x.agent_id + " · " + layer + " · " + tier + "级 · "
+        + (x.lifecycle_state || "") + " · " + (online ? "在线" : "离线") + " · " + hbAge(x.last_heartbeat);
+      var bg = online ? ("linear-gradient(145deg, " + hexToRgba(color, 0.38) + ", #2D2824 82%)") : "#2D2824";
+      html += '<div class="heatmap-cell ' + (online ? "" : "offline") + '" title="' + esc(tip) + '" style="background:' + bg + ';border-left:3px solid ' + (online ? color : "#5a5a5a") + '">'
+        + '<span class="agent-name">' + esc(name) + '</span>'
+        + '<span class="hb-dot ' + (online ? "hb-on" : "hb-off") + '"></span>'
+        + '<span class="agent-id">' + esc(x.agent_id) + ' · ' + esc(layer) + '</span>'
+        + '<span class="agent-load">' + esc(txt) + ' · ' + esc(tier) + '级 · ' + esc(x.lifecycle_state || "") + '</span></div>';
+    });
+    grid.innerHTML = html;
+  }
+
+  async function load() {
+    try {
+      var tr = await fetch("/api/governance/topology");
+      var t = await tr.json();
+      window.TOPO = t;
+      renderHeatmap();
+    } catch (e) { /* 暂不可用 */ }
+  }
+
+  function showLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "flex"; }
+  function hideLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "none"; }
+
+  async function attemptLogin() {
+    var input = $id("fingerprint-input");
+    var err = $id("login-error");
+    var fp = (input ? input.value : "").trim();
+    if (!/^\d{6}$/.test(fp)) { if (err) err.textContent = "请输入 6 位数字指纹"; return; }
+    try {
+      var resp = await fetch("/api/auth/governor-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fingerprint: fp })
+      });
+      var r = await resp.json();
+      if (r.status === "ok") {
+        currentUser = r.name || "治理者";
+        var tag = $id("user-tag");
+        if (tag) tag.textContent = "👤 " + currentUser;
+        hideLogin();
+        await load();
+        setInterval(load, 5000);
+      } else {
+        if (err) err.textContent = r.message || "指纹不匹配";
+        if (input) { input.value = ""; input.focus(); }
+      }
+    } catch (e) {
+      if (err) err.textContent = "登录服务不可用: " + e.message;
+    }
+  }
+
+  function bindLogin() {
+    var btn = $id("login-btn"), input = $id("fingerprint-input");
+    if (btn) btn.onclick = attemptLogin;
+    if (input) {
+      input.addEventListener("keydown", function (ev) { if (ev.key === "Enter") attemptLogin(); });
+      input.focus();
+    }
+  }
+
+  bindLogin();
+  showLogin();
+})();
+</script>
+</body>
+</html>
