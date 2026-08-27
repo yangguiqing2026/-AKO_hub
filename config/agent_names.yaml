@@ -31,4 +31,5 @@ agents:
   AKO_kb_agent: 知识库管理
   AKO_qc_agent: 质检
   AKO_registry_agent: 注册中心
-  AKO_review_agent: 审查Saas
+  AKO_identity_service: 身份认证层
+  AKO_monitor_agent: 熔断监控
