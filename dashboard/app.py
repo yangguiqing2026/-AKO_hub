@@ -770,6 +770,21 @@ async def heatmap_page():
 # 分层规则（域→层）：基座域→知识层，运维域→运维层，其余→工具层；hub 为圆心不入环
 _DOMAIN_TO_LAYER = {"基座域": "知识层", "运维域": "运维层"}
 _LAYER_COLORS = {"知识层": "#B99B5F", "运维层": "#A08C64", "工具层": "#7A9E7E"}
+_LAYERS_FILE = AKO_HUB_ROOT / "config" / "agent_layers.yaml"
+
+
+def _layer_members() -> Dict[str, List[str]]:
+    """读取分层名单（AKO_studio 指定名单优先）。"""
+    if _LAYERS_FILE.exists():
+        try:
+            import yaml
+            cfg = yaml.safe_load(_LAYERS_FILE.read_text(encoding="utf-8-sig")) or {}
+            layers = cfg.get("layers", {}) or {}
+            return {str(k): [str(x) for x in (v or [])]
+                    for k, v in layers.items() if k in _LAYER_COLORS}
+        except Exception:
+            pass
+    return {}
 
 
 def _registry_agents() -> List[Dict[str, Any]]:
@@ -806,6 +821,9 @@ def _registry_agents() -> List[Dict[str, Any]]:
 def _agent_layer(agent_id: str, domain: str) -> str:
     if agent_id in ("AKO_hub_agent", "AKO_hub"):
         return "圆心"
+    for layer, members in _layer_members().items():
+        if agent_id in members or agent_id.replace("_agent", "") in members:
+            return layer
     return _DOMAIN_TO_LAYER.get(domain, "工具层")
 
 

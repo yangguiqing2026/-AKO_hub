@@ -742,9 +742,15 @@ function drawTopology() {
   const ctx = canvas.getContext('2d');
   const panel = canvas.parentElement;
   const rect = panel.getBoundingClientRect();
-  canvas.width = Math.max(rect.width, 1);
-  canvas.height = Math.max(rect.height, 1);
-  const ringH = Math.min(canvas.width, canvas.height);
+  // 正方形画布居中：任何容器比例下同心圆恒为正圆，消除拉扁
+  const size = Math.max(320, Math.min(rect.width, rect.height));
+  canvas.width = size;
+  canvas.height = size;
+  canvas.style.width = size + "px";
+  canvas.style.height = size + "px";
+  canvas.style.margin = "0 auto";
+  canvas.style.display = "block";
+  const ringH = size;
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 

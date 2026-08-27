@@ -1,0 +1,48 @@
+# ============================================================
+# agent_layers.yaml — 三层分层名单（老板看板拓扑/卡片数据源）
+# ============================================================
+# 该文件为分层权威名单：列名由 AKO_studio 指定，未列入者按域规则回退
+# （基座域→知识层 / 运维域→运维层 / 其余→工具层）。
+# hub 恒为圆心，不入任何层。
+# ============================================================
+
+layers:
+  知识层:
+    - AKO_knowledge_agent
+    - AKO_kb_agent
+    - AKO_law_agent
+    - AKO_writer_agent
+
+  运维层:
+    - AKO_registry_agent
+    - AKO_netwatch_agent
+    - AKO_cluster_guardian_agent
+    - AKO_guardian_agent
+    - AKO_audit_agent
+    - AKO_qc_agent
+    - AKO_clinic_agent
+    - AKO_devil_agent
+    - AKO_config_audit_agent
+    - AKO_evolution_agent
+    - AKO_dependency_map_agent
+    - AKO_monitor_agent
+    - AKO_identity_service_agent
+
+  工具层:
+    - AKO_quote_agent
+    - AKO_layout_agent
+    - AKO_pack_agent
+    - AKO_pipeline_agent
+    - AKO_standard_agent
+    - AKO_drawing_inspector_agent
+    - AKO_image_analyzer_agent
+    - AKO_architect_agent
+    - AKO_media_agent
+    - AKO_business_agent
+    - AKO_client_profile_agent
+    - AKO_web_consult_agent
+    - AKO_chart_agent
+    - AKO_art_agent
+    - AKO_git_push_agent
+    - AKO_review_runner_agent
+    - AKO_file_tag_manager_agent
