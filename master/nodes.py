@@ -794,14 +794,15 @@ def state_aggregator(state: MasterState) -> Dict[str, Any]:
             db.execute(
                 """INSERT INTO task_queue
                    (task_id, workflow_id, trigger_agent, status,
-                    output_file_ids, finished_at)
-                   VALUES (?,?,?,?,?,?)
+                    output_file_ids, error_log, finished_at)
+                   VALUES (?,?,?,?,?,?,?)
                    ON CONFLICT(task_id) DO UPDATE SET
                        status=excluded.status,
                        output_file_ids=excluded.output_file_ids,
+                       error_log=excluded.error_log,
                        finished_at=excluded.finished_at""",
                 (task_id, state.get("target_workflow", ""), state.get("trigger_agent", "manual"),
-                 "done", output_ids, datetime.now().isoformat()),
+                 "done", output_ids, summary, datetime.now().isoformat()),
             )
     except Exception:
         pass

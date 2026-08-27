@@ -48,7 +48,9 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # 心跳监控库、事件流、HTTP 注册中心文件
 HEARTBEAT_DB = AKO_HUB_ROOT / "ako_hub.db"
-EVENTS_ROOT = AKO_HUB_ROOT / "events"
+# 事件总线统一位置：events/bus.py 的 AKO_ROOT = 项目根 D:\AKO
+# （原指向 AKO_hub/events，与总线写入目录漂移，看板恒读空）
+EVENTS_ROOT = AKO_HUB_ROOT.parent / "events"
 HTTP_AGENTS_FILE = AKO_HUB_ROOT / "registry" / "http_registered_agents.json"
 OPERATOR_CAPS_FILE = AKO_HUB_ROOT / "config" / "operator_capabilities.yaml"
 ROUTING_RULES_FILE = AKO_HUB_ROOT / "config" / "routing_rules.yaml"

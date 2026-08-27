@@ -45,7 +45,11 @@ def _save_registry(registry: dict) -> None:
 
 
 def enqueue_event(event_type: str, agent_id: str, data: Optional[dict] = None) -> None:
-    """向事件队列加入一条事件"""
+    """向事件队列加入一条事件。
+
+    持久化到 events/pending/（EventBus 文件总线，看板 /api/events 同源读取），
+    同时保留内存队列供进程内消费。
+    """
     with _events_lock:
         _events.append(
             {
@@ -56,6 +60,16 @@ def enqueue_event(event_type: str, agent_id: str, data: Optional[dict] = None) -
                 "timestamp": datetime.now().isoformat(),
             }
         )
+    try:
+        from events.bus import EventBus
+        EventBus().publish(
+            source_agent=agent_id,
+            event_type=event_type,
+            payload=data or {},
+            target_agent=agent_id,
+        )
+    except Exception:
+        pass  # 事件持久化失败不阻断 HTTP 响应
 
 
 class HubHTTPHandler(BaseHTTPRequestHandler):
