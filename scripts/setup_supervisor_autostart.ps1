@@ -5,7 +5,7 @@
 # 移除：Unregister-ScheduledTask -TaskName "AKO-Supervisor" -Confirm:$false
 
 $ErrorActionPreference = "Stop"
-$hub = Split-Path -Parent $MyInvocation.MyCommand.Path
+$hub = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $startScript = Join-Path $hub "start_agents.ps1"
 $taskName = "AKO-Supervisor"
 
