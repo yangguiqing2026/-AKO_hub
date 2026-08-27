@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_media 适配器
-将 D:\AKO_media_agent (5层内容营销流水线) 包装为 Hub Spoke。
+将 D:\AKO\AKO_media_agent (5层内容营销流水线) 包装为 Hub Spoke。
 """
 import sys
 import json
@@ -10,9 +10,9 @@ from datetime import datetime
 from contextlib import redirect_stdout, redirect_stderr
 from typing import Dict, Any
 
-SOURCE_DIR = Path(r"D:\AKO_media_agent")
+SOURCE_DIR = Path(r"D:\AKO\AKO_media_agent")
 
-CONFIG_PATH = r"D:/AKO_media_agent/config/AKO_media_agent_config.yaml"
+CONFIG_PATH = r"D:/AKO/AKO_media_agent/config/AKO_media_agent_config.yaml"
 
 
 def run(

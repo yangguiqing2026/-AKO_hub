@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_business 适配器
-将 D:\AKO_business_agent (作战指挥系统) 包装为 Hub Spoke。
+将 D:\AKO\AKO_business_agent (作战指挥系统) 包装为 Hub Spoke。
 
 支持操作：
   - 生成报价单 (generate_quote) + 风险评估 (risk_report)
@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 
-SOURCE_DIR = Path(r"D:\AKO_business_agent")
+SOURCE_DIR = Path(r"D:\AKO\AKO_business_agent")
 
 
 def run(

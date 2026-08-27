@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_quote 适配器
-将 D:\AKO_quote_agent (装配式建筑报价引擎) 包装为 Hub Spoke。
+将 D:\AKO\AKO_quote_agent (装配式建筑报价引擎) 包装为 Hub Spoke。
 """
 import sys
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 
-SOURCE_DIR = Path(r"D:\AKO_quote_agent\ako_quote_agent")
+SOURCE_DIR = Path(r"D:\AKO\AKO_quote_agent\ako_quote_agent")
 
 
 def run(

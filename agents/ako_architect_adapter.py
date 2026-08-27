@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 # 默认外部 Agent 路径（可通过 payload 覆盖）
-DEFAULT_AGENT_DIR = Path("D:/AKO_architect_agent")
+DEFAULT_AGENT_DIR = Path("D:/AKO/AKO_architect_agent")
 DEFAULT_ENTRY_SCRIPT = "run.py"  # 外部 Agent 入口脚本，可调整
 
 

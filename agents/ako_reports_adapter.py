@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 # Report Template 路径
-REPORT_TEMPLATE_DIR = Path("D:/AKO_Report_Template-v1.0")
+REPORT_TEMPLATE_DIR = Path("D:/AKO/AKO_hub/reports_templates")
 REPORT_SCRIPTS_DIR = REPORT_TEMPLATE_DIR / "scripts"
 
 # 确保脚本目录可导入

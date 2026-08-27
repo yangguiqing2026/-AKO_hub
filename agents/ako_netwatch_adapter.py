@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_netwatch_agent 适配器
-将 D:\AKO_netwatch_agent (网络监控) 包装为 Hub Spoke。
+将 D:\AKO\AKO_netwatch_agent (网络监控) 包装为 Hub Spoke。
 
 支持操作：
   - check: 执行一轮全量检查（HTTP/SSL/域名/ICP）
@@ -14,7 +14,7 @@ from datetime import datetime
 from contextlib import redirect_stdout, redirect_stderr
 from typing import Dict, Any
 
-SOURCE_DIR = Path(r"D:\AKO_netwatch_agent")
+SOURCE_DIR = Path(r"D:\AKO\AKO_netwatch_agent")
 
 
 def run(

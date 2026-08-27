@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_chat 适配器
-将 D:\AKO_chat (RAG 知识库对话系统) 包装为 Hub Spoke。
+将 D:\AKO\AKO_hub (RAG 知识库对话系统) 包装为 Hub Spoke。
 
 调用方式：
     Hub workflow_caller 通过 importlib 导入本模块，调用 run() 函数。
@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 # 将 AKO_chat 源码加入路径
-SOURCE_DIR = Path(r"D:\AKO_chat")
+SOURCE_DIR = Path(r"D:\AKO\AKO_hub")
 if str(SOURCE_DIR) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIR))
 

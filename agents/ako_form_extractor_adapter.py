@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_form_extractor 适配器
-将 D:\AKO_form_extractor (表单数据提取) 包装为 Hub Spoke。
+将 D:\AKO\AKO_hub (表单数据提取) 包装为 Hub Spoke。
 """
 import sys
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 
-SOURCE_DIR = Path(r"D:\AKO_form_extractor")
+SOURCE_DIR = Path(r"D:\AKO\AKO_hub")
 
 
 def run(

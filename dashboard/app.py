@@ -1331,16 +1331,32 @@ async def dispatch_workorder(wo_id: str):
     if row.get("display_cap"):
         biz.setdefault("display_cap", row.get("display_cap"))
 
-    from hub_api import submit_task
+    # 异步后台执行：立即返回 running，由 /api/workorders/{id}/result 轮询真实状态。
+    # 同步执行会阻塞 HTTP 响应（LLM/重型 Agent 可达分钟级），导致员工台"无响应"。
+    import threading
 
-    # 以 wo_id 复用为 task_id，保证"一工单=一行"，图执行后 UPSERT 回写
-    result = submit_task(biz, task_id=wo_id, trigger="operator")
+    def _run() -> None:
+        from hub_api import submit_task
+        try:
+            submit_task(biz, task_id=wo_id, trigger="operator")
+        except Exception as exc:  # noqa: BLE001
+            db2 = _workorder_db()
+            try:
+                db2.execute(
+                    "UPDATE task_queue SET status='failed', error_log=? WHERE task_id=?",
+                    (f"{type(exc).__name__}: {exc}", wo_id),
+                )
+                db2.commit()
+            finally:
+                db2.close()
+
+    threading.Thread(target=_run, daemon=True, name=f"wo-{wo_id}").start()
 
     return {
         "status": "ok",
         "work_order_id": wo_id,
-        "record_status": result.get("status"),
-        "result": result,
+        "record_status": "running",
+        "message": "已派发，后台执行中（轮询 /result 获取真实状态）",
     }
 
 

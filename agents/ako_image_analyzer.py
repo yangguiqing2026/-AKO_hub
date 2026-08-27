@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 # 默认外部工作流目录（可通过 payload 覆盖）
-DEFAULT_WORKFLOW_DIR = Path("D:/AKO_image_analyzer")
+DEFAULT_WORKFLOW_DIR = Path("D:/AKO/AKO_image_analyzer_agent")
 DEFAULT_ENTRY_SCRIPT = "run.py"
 
 

@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_knowledge 适配器
-将 D:\AKO_knowledge (知识库服务) 包装为 Hub Spoke。
+将 D:\AKO\AKO_knowledge (知识库服务) 包装为 Hub Spoke。
 
 支持操作：
   - search: 混合检索
@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 
-SOURCE_DIR = Path(r"D:\AKO_knowledge")
+SOURCE_DIR = Path(r"D:\AKO\AKO_knowledge")
 
 
 def run(

@@ -273,6 +273,7 @@ def _workflow_caller_core(state: MasterState) -> Dict[str, Any]:
             # P4: 若 Spoke 配置了 source_dir，将其加入 sys.path 以便动态导入
             source_dir = spoke.get("source_dir", "")
             path_inserted = False
+            src = ""
             if source_dir and Path(source_dir).exists():
                 src = str(Path(source_dir).resolve())
                 if src not in sys.path:
@@ -280,8 +281,16 @@ def _workflow_caller_core(state: MasterState) -> Dict[str, Any]:
                     path_inserted = True
 
             try:
-                # 动态导入（source_dir 已加入 sys.path）
-                mod = importlib.import_module(entry_mod)
+                try:
+                    # 动态导入（source_dir 已加入 sys.path，外部项目自带 agents 包时优先）
+                    mod = importlib.import_module(entry_mod)
+                except ModuleNotFoundError:
+                    # 回退：内置适配器（quote/architect 等）位于 hub 的 agents/ 包，
+                    # 其外部目录没有同名模块——退掉 source_dir 后从 hub 包导入
+                    if path_inserted and src in sys.path:
+                        sys.path.remove(src)
+                        path_inserted = False
+                    mod = importlib.import_module(entry_mod)
             finally:
                 # 清理临时加入的路径，避免污染全局
                 if path_inserted and src in sys.path:
