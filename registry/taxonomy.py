@@ -97,6 +97,20 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
     # ── 批2 全接通（2026-09-03）──
     "AKO_standard_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_PRODUCER},
     "AKO_client_profile_agent": {"domain": DOMAIN_COMMERCE, "function": FUNCTION_ANALYZER},
+    # ── 批3 运维/治理层 L0（2026-09-03）──
+    "AKO_registry_agent": {"domain": DOMAIN_INFRASTRUCTURE, "function": FUNCTION_ORCHESTRATOR},
+    "AKO_audit_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_MONITOR},
+    "AKO_qc_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_ANALYZER},
+    "AKO_guardian_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_MONITOR},
+    "AKO_monitor_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_MONITOR},
+    "AKO_identity_service_agent": {"domain": DOMAIN_INFRASTRUCTURE, "function": FUNCTION_RETRIEVER},
+    "AKO_clinic_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_ANALYZER},
+    "AKO_devil_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_ANALYZER},
+    "AKO_cluster_guardian_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_MONITOR},
+    "AKO_config_audit_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_ANALYZER},
+    "AKO_evolution_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_ORCHESTRATOR},
+    "AKO_dependency_map_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_ANALYZER},
+    "AKO_kb_agent": {"domain": DOMAIN_DATA, "function": FUNCTION_INGESTOR},
     # ── 工程域（设计 + 图纸/质检 + 图像分析 + 工程工作流） ─────
     "AKO_architect_agent": {
         "domain": DOMAIN_ENGINEERING,

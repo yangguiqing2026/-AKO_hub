@@ -49,3 +49,5 @@ agents:
   AKO_standard_agent: 企业标准
   AKO_web_consult_agent: 网站咨询
   AKO_writer_agent: 技术写作
+  AKO_workflow: 主工作流
+  AKO_geo: GEO内容生产
