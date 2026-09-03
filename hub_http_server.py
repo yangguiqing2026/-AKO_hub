@@ -232,11 +232,28 @@ def run(port: int = PORT):
     server = HTTPServer(("0.0.0.0", port), HubHTTPHandler)
     print(f"AKO_hub HTTP 服务已启动: http://0.0.0.0:{port}")
     print("端点: GET /health | POST /register | GET /events/poll | POST /events | /api/v1/hub/wo/*")
+
+    # ── pending 队列消费 worker（守护线程；AKO_HUB_WORKER=0 禁用） ──
+    import os
+    import threading
+    from core.pending_worker import run_loop
+
+    worker_stop = threading.Event()
+    if os.environ.get("AKO_HUB_WORKER", "1") != "0":
+        threading.Thread(
+            target=run_loop, kwargs={"stop_event": worker_stop},
+            daemon=True, name="pending_worker",
+        ).start()
+        print("pending worker 已启动（env AKO_HUB_WORKER=0 可禁用）")
+    else:
+        print("pending worker 已禁用（AKO_HUB_WORKER=0）")
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n服务已停止")
     finally:
+        worker_stop.set()
         server.server_close()
 
 
