@@ -85,6 +85,15 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
         "domain": DOMAIN_INFRASTRUCTURE,
         "function": FUNCTION_ORCHESTRATOR,
     },
+    # ── 批2 L0 注册级（2026-09-03）：GUI/工具型，仅看板可见，禁止 hub 调度 ──
+    "AKO_chart_agent": {"domain": DOMAIN_DATA, "function": FUNCTION_PRODUCER},
+    "AKO_art_agent": {"domain": DOMAIN_CONTENT, "function": FUNCTION_ANALYZER},
+    "AKO_web_consult_agent": {"domain": DOMAIN_CONTENT, "function": FUNCTION_RETRIEVER},
+    "AKO_git_push_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_INGESTOR},
+    "AKO_pack_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_PRODUCER},
+    "AKO_pipeline_agent": {"domain": DOMAIN_INFRASTRUCTURE, "function": FUNCTION_ORCHESTRATOR},
+    "AKO_file_tag_manager": {"domain": DOMAIN_DATA, "function": FUNCTION_INGESTOR},
+    "AKO_review_runner_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_ANALYZER},
     # ── 工程域（设计 + 图纸/质检 + 图像分析 + 工程工作流） ─────
     "AKO_architect_agent": {
         "domain": DOMAIN_ENGINEERING,

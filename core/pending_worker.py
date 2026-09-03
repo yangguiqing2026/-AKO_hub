@@ -67,6 +67,13 @@ def is_routable(row: Dict[str, Any]) -> bool:
     workflow_id = str(row.get("workflow_id", "")).strip()
     if not workflow_id or not _is_registered(workflow_id):
         return False
+    try:
+        from registry.workflows import get_spoke_by_id
+
+        if get_spoke_by_id(workflow_id).get("invoke_mode") == "manual_gui":
+            return False  # L0 注册级（GUI/工具型）不参与队列调度
+    except Exception:
+        pass
     raw = row.get("raw_payload")
     if not raw:
         return False

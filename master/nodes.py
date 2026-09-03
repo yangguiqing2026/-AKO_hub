@@ -94,6 +94,13 @@ def task_router(state: MasterState) -> Dict[str, Any]:
                 "error_log": f"未注册的 workflow_id: {workflow_id}",
                 "started_at": datetime.now().isoformat(),
             }
+        if spoke.get("invoke_mode") == "manual_gui":
+            # 批2 L0 注册级（GUI/工具型，2026-09-03）：看板可见但禁止 hub 调度
+            return {
+                "status": "failed",
+                "error_log": f"{workflow_id} 为 L0 注册级（GUI/工具型），禁止 hub 调度，请通过其自身 GUI/流程使用",
+                "started_at": datetime.now().isoformat(),
+            }
         return {
             "target_workflow": workflow_id,
             "target_agent": spoke.get("entry_module"),
