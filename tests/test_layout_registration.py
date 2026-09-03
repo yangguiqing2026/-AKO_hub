@@ -47,10 +47,15 @@ def test_adapter_import_callable():
     assert callable(mod.run)
 
 
-def test_protocol_error_chain_without_reportlab():
-    """环境缺 reportlab 时：适配器必须三字段返回 error（ImportError 透传），不得裸抛。"""
+def test_real_project_render_chain():
+    """真实排版链（依赖已装，2026-09-03 消解挂账）：
+    project 模式渲染 AKO_测试项目 → PDF + JPG 预览落盘。"""
+    import tempfile
+
     mod = importlib.import_module("agents.ako_layout_adapter")
-    result = mod.run(intent="排版演示", _hub_output_dir="")
-    assert result["error"], "缺 reportlab 环境应返回 error 而非裸抛异常"
-    assert isinstance(result["output_files"], list)
-    assert isinstance(result["summary"], str)
+    with tempfile.TemporaryDirectory() as td:
+        result = mod.run(intent="项目排版", project_folder="AKO_测试项目", _hub_output_dir=td)
+        assert result["error"] is None, result["error"]
+        kinds = [Path(f).suffix for f in result["output_files"]]
+        assert ".pdf" in kinds and ".jpg" in kinds, kinds
+        assert all(Path(f).exists() for f in result["output_files"])

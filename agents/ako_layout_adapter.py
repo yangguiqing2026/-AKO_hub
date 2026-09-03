@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_layout_agent 适配器
-将 D:\AKO\AKO_layout_agent (智能排版) 包装为 Hub Spoke。
+将 D:/AKO/AKO_layout_agent（智能排版）包装为 Hub Spoke。
 """
 import sys
 import json
@@ -10,8 +10,8 @@ from datetime import datetime
 from contextlib import redirect_stdout, redirect_stderr
 from typing import Dict, Any
 
-SOURCE_DIR = Path(r"D:\AKO\AKO_layout_agent")
-CONFIG_PATH = str(SOURCE_DIR / "AKO-Layout-Agent-Config-v2.1.json")
+SOURCE_DIR = Path(r"D:/AKO/AKO_layout_agent")
+CONFIG_PATH = str(SOURCE_DIR / "AKO_layout_agent_config_v2.1.json")
 
 
 def run(
