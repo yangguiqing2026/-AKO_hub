@@ -1,9 +1,9 @@
 ---
 title: "AKO Hub 全舰队 Agent 接通施工方案"
-description: "D:\\AKO 全舰队 40 个 Agent 按统一 spoke 契约分批接入 hub 调度（适配器+全路由层注册+命名拓扑）的施工规范与验收基线"
+description: "D:\\AKO 全舰队 Agent 分批接入 hub 调度（适配器+全路由层注册+命名拓扑）施工规范与验收基线；v1.0.1 附执行终局与口径勘误"
 author: "AKO_studio"
-date: "2026-09-02"
-version: "v1.0.0"
+date: "2026-09-03"
+version: "v1.0.1"
 tags: [agent, workflow, config, deploy]
 ---
 
@@ -19,12 +19,41 @@ tags: [agent, workflow, config, deploy]
 
 | 字段 | 内容 |
 |:---|:---|
-| 文档编号 | AKO_HUB_AGENT_CONNECT_PLAN_v1.0.0 |
+| 文档编号 | AKO_HUB_AGENT_CONNECT_PLAN_v1.0.1 |
 | 施工对象 | D:\AKO 下 40 个 Agent/服务目录 + hub 内 5 个虚拟 spoke |
 | 编制依据 | AKO_hub_whitepaper_v2.0.0.md、AKO_hub_deploy_checklist_v2.0.0.md、core/spoke_protocol.py、registry/workflows.py、config/routing_rules.yaml、writer/intake 接线样板（commit b804169 与在途改动） |
 | 审签状态 | 草案待审签 |
 | 生效日期 | 待审签 |
 | 修订策略 | 随 spoke 契约或路由层结构变更即时修订；批次完结并入季度巡检 |
+
+---
+
+## 〇、v1.0.1 勘误与执行终局（2026-09-03，本段为权威执行口径）
+
+> v1.0.0 的批次表（批2=工具层 10 个 NL 接通、批3=运维层 13 个 NL 接通）在实施中被
+> AKO_studio 拍板修正：**GUI/内部工具/治理服务不做 NL 路由**，改为 L0 注册级
+> （看板可见 + taxonomy 分类 + 禁 hub 调度护栏）。本节点取代 §七 中对应批次的施工目标。
+
+### 执行终局（批 0-批 3，2026-09-03 全部落地）
+
+| 批次 | 原口径 | 执行口径 | 结果 |
+|:---|:---|:---|:---|
+| 批0 | intake 接线收尾 | 同左 | ✅ L3 闭环：工单 API（allocate/deliver/manual_review/status）+ DB 迁移 + taxonomy + 命名大门层；生产 HTTP 全链验证 |
+| 部署层 | — | 追加（用户拍板） | ✅ hub 主服务（app.py :8080+worker :5000）、看板 :8081、pending 消费循环、心跳恢复 |
+| 批1 | 11 目录 + 5 虚拟 | 同左（layout 挂账后消解） | ✅ NL 接通（architect/law/quote/media/drawing/business/image/netwatch/knowledge）+ 虚拟归档；layout 依赖装齐真实排版链通过 |
+| §九 | 名单清扫 | 同左 | ✅ AKO工作流→AKO_workflow、路由"文章"冲突消除、心跳别名×3、三表对齐固化测试 |
+| 批2 | 10 个 NL | **修正：8 L0 + 2 全接通** | ✅ chart/art/web_consult/git_push/pack/pipeline/file_tag_manager/review_runner 注册级（manual_gui）；standard/client_profile 全接通（生产全链 done×2，纯本地规则链） |
+| 批3 | 13 个 NL | **修正：13 全 L0** | ✅ registry/audit/qc/guardian/monitor/identity_service_agent + clinic/devil/cluster_guardian/config_audit/evolution/dependency_map/kb_agent |
+
+### 关键机制新增（随施工沉淀）
+1. `core/pending_worker.py`：pending 队列认领式消费（可路由才执行/不可路由转人工/复用分布式锁），随 :8080 生命周期；
+2. `invoke_mode=manual_gui` 注册制 + task_router/pending_worker 双护栏：L0 实体禁 hub 调度；
+3. 心跳 `*_agent` 别名表与 registry 规范 id 对齐，看板中文名全覆盖。
+
+### 验收基线（全量）
+- 核心测试套件 90/90 绿；生产库终态：41 注册实体、board 39 卡、在线 11/11 中文名齐。
+- 挂账项：architect 真实文生图链（密钥+模型下载，用户侧）；media news_monitor 源 URL 配置；file_tag 幽灵卡数据源根治（小项）。
+- 验收留痕：hub `logs/`（batch0/batch1*/batch2/deferred/deploy_acceptance 各记录文件）+ 本会话 25+ commits（master，含 [batch*]/[sweep]/[batch][worker] 前缀可检索）。
 
 ---
 
