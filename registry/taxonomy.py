@@ -80,6 +80,11 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
         "domain": DOMAIN_INFRASTRUCTURE,
         "function": FUNCTION_ORCHESTRATOR,
     },
+    # intake：工厂唯一大门（人机入口/工单生成投递），与 hub 同属基础设施编排域
+    "AKO_hub_intake_agent": {
+        "domain": DOMAIN_INFRASTRUCTURE,
+        "function": FUNCTION_ORCHESTRATOR,
+    },
     # ── 工程域（设计 + 图纸/质检 + 图像分析 + 工程工作流） ─────
     "AKO_architect_agent": {
         "domain": DOMAIN_ENGINEERING,
