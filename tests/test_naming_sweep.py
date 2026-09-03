@@ -56,6 +56,8 @@ def test_all_registered_have_chinese_names():
         if s.get("spoke_type") != "agent":
             continue
         wid = s["workflow_id"]
+        if wid.startswith("AKO_test_"):  # 既有注册测试的会话内仪器条目，非真实舰队
+            continue
         assert wid in names, f"{wid} 缺中文名"
         assert names[wid], f"{wid} 中文名为空"
 
