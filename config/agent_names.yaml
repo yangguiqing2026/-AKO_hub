@@ -29,6 +29,7 @@ agents:
   AKO_cluster_guardian_agent: 集群巡检
   AKO_devil_agent: 魔鬼
   AKO_file_tag_manager: 文件标签管理
+  AKO_file_tag_manager_agent: 文件标签管理  # 幽灵卡片别名（旧层残留）
   AKO_git_push_agent: Git推送
   AKO_guardian_agent: 安全守卫
   AKO_kb_agent: 知识库管理
