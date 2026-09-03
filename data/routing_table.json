@@ -92,9 +92,9 @@
       "load": 0,
       "priority": 5
     },
-    "AKO工作流": {
-      "agent_id": "AKO工作流",
-      "name": "AKO工作流",
+    "AKO_workflow": {
+      "agent_id": "AKO_workflow",
+      "name": "AKO_workflow",
       "type": "workflow",
       "entry_module": "agents.ako_workflow_adapter",
       "entry_function": "run",
@@ -346,7 +346,7 @@
     "AKO_architect_agent": "AKO_architect_agent",
     "AKO_drawing_inspector": "AKO_drawing_inspector",
     "AKO_image_analyzer_agent": "AKO_image_analyzer_agent",
-    "AKO工作流": "AKO工作流",
+    "AKO_workflow": "AKO_workflow",
     "AKO_chat": "AKO_chat",
     "AKO_geo": "AKO_geo",
     "AKO_reports": "AKO_reports",

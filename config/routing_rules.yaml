@@ -68,9 +68,6 @@ keyword_routes:
 - keyword: 文案
   agent_id: AKO_media_agent
   confidence: 0.9
-- keyword: 文章
-  agent_id: AKO_media_agent
-  confidence: 0.85
 - keyword: 排版
   agent_id: AKO_layout_agent
   confidence: 0.9

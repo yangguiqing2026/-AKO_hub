@@ -110,9 +110,11 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "invoke_mode": "importlib",
     },
     # ── AKO 主工作流（1 个） ──────────────────────────────────
+    # 2026-09-03 §九 清扫：id 由中文 'AKO工作流' 统一为英文 AKO_workflow
+    # （历史沿用 D:\AKO工作流 中文目录名；目录与 adapter 不改，仅注册面规范化）
     {
-        "workflow_id": "AKO工作流",
-        "name": "AKO工作流",
+        "workflow_id": "AKO_workflow",
+        "name": "AKO_workflow",
         "spoke_type": "workflow",
         "entry_module": "agents.ako_workflow_adapter",
         "entry_function": "run",

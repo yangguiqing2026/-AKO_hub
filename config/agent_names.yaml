@@ -7,6 +7,7 @@
 
 agents:
   AKO_hub: 总线调度中枢
+  AKO_hub_agent: 总线调度中枢        # §九 别名：心跳/看板以 *_agent 规范名上报
   AKO_hub_intake_agent: 任务大门
   AKO_architect_agent: 建筑设计
   AKO_drawing_inspector: 图纸质检
@@ -20,6 +21,7 @@ agents:
   AKO_form_extractor: 表单数据提取
   AKO_netwatch_agent: 网络骑兵
   AKO_knowledge: 知识库
+  AKO_knowledge_agent: 知识库          # §九 别名：心跳/看板 *_agent 规范名
   AKO_law_agent: 法律合规
   AKO_audit_agent: 审计
   AKO_client_profile_agent: 客户画像
@@ -33,6 +35,7 @@ agents:
   AKO_qc_agent: 质检
   AKO_registry_agent: 注册中心
   AKO_identity_service: 身份认证层
+  AKO_identity_service_agent: 身份认证层   # §九 别名：心跳/看板 *_agent 规范名
   AKO_monitor_agent: 熔断监控
   AKO_config_audit_agent: 配置审计
   AKO_dependency_map_agent: 依赖图谱

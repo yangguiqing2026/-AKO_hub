@@ -98,7 +98,7 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
         "domain": DOMAIN_ENGINEERING,
         "function": FUNCTION_ANALYZER,
     },
-    "AKO工作流": {
+    "AKO_workflow": {
         "domain": DOMAIN_ENGINEERING,
         "function": FUNCTION_ORCHESTRATOR,
     },
