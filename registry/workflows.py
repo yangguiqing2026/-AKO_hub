@@ -375,8 +375,8 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "invoke_mode": "manual_gui",
     },
     {
-        "workflow_id": "AKO_file_tag_manager",
-        "name": "AKO_file_tag_manager",
+        "workflow_id": "AKO_file_tag_manager_agent",
+        "name": "AKO_file_tag_manager_agent",
         "spoke_type": "agent",
         "entry_module": "",
         "entry_function": "",

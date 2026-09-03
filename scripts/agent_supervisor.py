@@ -21,6 +21,7 @@ GUARDIAN_DIR = AKO_ROOT / "AKO_guardian_agent"
 WEB_CONSULT_DIR = AKO_ROOT / "AKO_web_consult_agent"
 IDENTITY_DIR = AKO_ROOT / "AKO_identity_service"
 MONITOR_DIR = AKO_ROOT / "AKO_monitor_agent"
+QUOTE_DIR = AKO_ROOT / "AKO_quote_agent"
 
 # 自动重启约束：连续 OFFLINE_RESTART_AFTER 次判定后重启，每小时最多 MAX_RESTARTS_PER_HOUR 次
 OFFLINE_RESTART_AFTER = 2
@@ -125,6 +126,24 @@ def probe_identity(ap: AgentProc) -> bool:
 def probe_monitor(ap: AgentProc) -> bool:
     return ap.proc is not None and ap.proc.poll() is None
 
+
+def probe_quote(ap: AgentProc) -> bool:
+    """quote 服务无自开 HTTP：以其在 registry(5024) 的自注册为存活判据。"""
+    import json as _json
+
+    if ap.proc is None or ap.proc.poll() is not None:
+        return False
+    try:
+        with requests.get(
+            "http://127.0.0.1:5024/ako/api/v1/registry/agents", timeout=5
+        ) as r:
+            data = r.json()
+        agents = data.get("agents", data) if isinstance(data, dict) else data
+        ids = agents.keys() if isinstance(agents, dict) else [a.get("agent_id", "") for a in agents if isinstance(a, dict)]
+        return "AKO_quote_agent" in set(ids)
+    except Exception:
+        return False
+
 def post_heartbeat(agent_id: str, alive: bool) -> None:
     try:
         cpu = psutil.cpu_percent(interval=None)
@@ -212,6 +231,16 @@ def main() -> None:
             [str(Path(sys.executable)), "main.py"],
             MONITOR_DIR,
             probe_monitor,
+        ),
+        # 2026-09-03 批2 收尾：quote 纳入 supervisor（第 10 服务）。
+        # quote app.py 主流程含 SDK 自注册+心跳（无自开 HTTP），以 registry 注册为探针。
+        # 注：supervisor 当前未在本机运行（9 服务心跳由各自 SDK 自嵌上报）；
+        # 本条目为配置预备，宿主启用 supervisor 时生效。
+        AgentProc(
+            "AKO_quote_agent",
+            [str(Path(sys.executable)), "app.py"],
+            QUOTE_DIR,
+            probe_quote,
         ),
     ]
 

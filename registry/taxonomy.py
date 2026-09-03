@@ -92,7 +92,7 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
     "AKO_git_push_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_INGESTOR},
     "AKO_pack_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_PRODUCER},
     "AKO_pipeline_agent": {"domain": DOMAIN_INFRASTRUCTURE, "function": FUNCTION_ORCHESTRATOR},
-    "AKO_file_tag_manager": {"domain": DOMAIN_DATA, "function": FUNCTION_INGESTOR},
+    "AKO_file_tag_manager_agent": {"domain": DOMAIN_DATA, "function": FUNCTION_INGESTOR},
     "AKO_review_runner_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_ANALYZER},
     # ── 批2 全接通（2026-09-03）──
     "AKO_standard_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_PRODUCER},
@@ -180,10 +180,6 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
     "AKO_law_agent": {
         "domain": DOMAIN_GOVERNANCE,
         "function": FUNCTION_ANALYZER,
-    },
-    "AKO_audit_agent": {
-        "domain": DOMAIN_GOVERNANCE,
-        "function": FUNCTION_MONITOR,
     },
 }
 

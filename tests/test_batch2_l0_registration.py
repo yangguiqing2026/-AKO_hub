@@ -20,7 +20,7 @@ from registry.taxonomy import TAXONOMY  # noqa: E402
 L0_IDS = [
     "AKO_chart_agent", "AKO_art_agent", "AKO_web_consult_agent",
     "AKO_git_push_agent", "AKO_pack_agent", "AKO_pipeline_agent",
-    "AKO_file_tag_manager", "AKO_review_runner_agent",
+    "AKO_file_tag_manager_agent", "AKO_review_runner_agent",
 ]
 
 
