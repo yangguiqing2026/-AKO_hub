@@ -26,13 +26,12 @@ DB_TIMEOUT: float = 5.0        # SQLite 写入超时（秒）
 # 使其在「健康巡检 / 总览看板」中可见（未上报心跳时为离线状态）。
 # 一旦这些 Agent 上报心跳，心跳字段会被正常更新为在线。
 SEED_AGENTS: list[tuple[str, str, str]] = [
-    # (agent_id, display_name, agent_type)
+    # (agent_id, display_name, agent_type)  —— 仅 registry 模块不可用时的启动兜底
     ("AKO_client_profile_agent", "客户画像 Agent", "business"),
     ("AKO_clinic_agent", "集群健康诊疗 Agent", "ops"),
     ("AKO_kb_agent", "知识库检索 Agent", "base"),
     ("AKO_knowledge", "知识库服务", "base"),
     ("AKO_media_agent", "内容营销 Agent", "design"),
-    ("AKO_review_agent", "代码审查 Agent", "ops"),
     ("AKO_file_tag_manager", "文件标签管理 Agent", "base"),
 ]
 
@@ -167,16 +166,43 @@ def receive_heartbeat_data(data: Dict[str, Any], db_path: str = "ako_hub.db") ->
         return {"status": "error", "message": f"{type(e).__name__}: {e}"}
 
 
-def seed_agents_registry(db_path: str = "ako_hub.db") -> None:
-    """
-    将 SEED_AGENTS 默认清单幂等地写入 agents_registry（INSERT OR IGNORE）。
+def _spoke_registry_agents() -> list[tuple[str, str, str]]:
+    """本地 spoke 注册表（registry/workflows.py）agent 型实体清单。
 
-    用于让 D:/AKO 下尚未上报心跳的 Agent 也出现在看板中（离线状态可见）。
+    让"已登记但未部署/未上报心跳"的 Agent 在看板中离线可见；
+    registry 导入失败时回退 SEED_AGENTS 常量，保证服务可启动。
     """
     try:
+        from registry.workflows import list_all_spokes
+        out: list[tuple[str, str, str]] = []
+        for s in list_all_spokes():
+            if s.get("spoke_type") != "agent":
+                continue
+            wid = str(s.get("workflow_id", "")).strip()
+            if not wid:
+                continue
+            out.append((wid, str(s.get("display_name") or s.get("name") or wid),
+                        str(s.get("agent_type") or "unknown")))
+        if out:
+            return out
+    except Exception:
+        pass
+    return list(SEED_AGENTS)
+
+
+def seed_agents_registry(db_path: str = "ako_hub.db") -> None:
+    """
+    将「本地 spoke 注册表 agent 型清单」幂等登记进 agents_registry（INSERT OR IGNORE），
+    并清理注册表幽灵（2026-09-03：已注销/改名且 24h 无心跳的旧行）。
+
+    保留规则：期望清单内行、或 24h 内有活跃心跳的行（双名别名如 AKO_hub ↔ AKO_hub_agent 靠
+    dashboard 归一键匹配，别名行有心跳时不可误删）。
+    """
+    try:
+        desired = _spoke_registry_agents()
         conn = _get_db(db_path)
         try:
-            for agent_id, display_name, agent_type in SEED_AGENTS:
+            for agent_id, display_name, agent_type in desired:
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO agents_registry
@@ -185,6 +211,33 @@ def seed_agents_registry(db_path: str = "ako_hub.db") -> None:
                     """,
                     (agent_id, display_name, agent_type),
                 )
+            # ── 幽灵清理 ──
+            desired_ids = {t[0] for t in desired}
+            now = datetime.now(timezone.utc)
+            rows = conn.execute(
+                """
+                SELECT a.agent_id, MAX(h.timestamp) AS last_hb
+                FROM agents_registry a
+                LEFT JOIN heartbeats h ON h.agent_id = a.agent_id
+                GROUP BY a.agent_id
+                """
+            ).fetchall()
+            to_delete: list[str] = []
+            for r in rows:
+                aid = str(r["agent_id"])
+                if aid in desired_ids:
+                    continue
+                last_hb = r["last_hb"]
+                if last_hb:
+                    try:
+                        ts = datetime.fromisoformat(str(last_hb).replace("Z", "+00:00"))
+                        if (now - ts).total_seconds() < 24 * 3600:
+                            continue  # 活跃心跳中的别名/未登记实体，保留
+                    except Exception:
+                        pass
+                to_delete.append(aid)
+            for aid in to_delete:
+                conn.execute("DELETE FROM agents_registry WHERE agent_id=?", (aid,))
             conn.commit()
         finally:
             conn.close()

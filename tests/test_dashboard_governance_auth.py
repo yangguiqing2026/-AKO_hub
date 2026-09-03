@@ -363,3 +363,59 @@ def test_verify_ok_on_verified_true(monkeypatch: Any, tmp_path: Path):
     state, human = _run_verify(monkeypatch, tmp_path,
                                lambda: _FakeResp(200, {"verified": True}), ["active"])
     assert state == "ok" and human and human["human_id"] == "HUM-T0-001"
+
+
+# ── review 修复回归：topology 双名归一（心跳键无 _agent 后缀也判在线） ──
+
+def test_topology_matches_suffixless_heartbeat_keys(client: TestClient, monkeypatch):
+    token = _login_as_governor(client, monkeypatch)
+    # 注册键带 _agent 后缀，心跳键无后缀（AKO_knowledge / AKO_identity_service）
+    monkeypatch.setattr(
+        app_mod, "_registry_agents",
+        lambda: [{"agent_id": "AKO_knowledge_agent", "domain": "基座域"},
+                 {"agent_id": "AKO_hub_agent", "domain": ""}],
+    )
+    monkeypatch.setattr(
+        app_mod, "_heartbeat_status_map",
+        lambda: {"AKO_knowledge": {"online": True}, "AKO_hub": {"online": True}},
+    )
+    monkeypatch.setattr(app_mod, "_load_agent_names", lambda: {})
+    monkeypatch.setattr(app_mod, "_topology_edges", lambda: [])
+    r = client.get("/api/governance/topology", headers=_gov_headers(token))
+    body = r.json()
+    assert body["online_total"] == 2, body  # 双名归一后两实体都应在线
+    hub = body["hub"]
+    assert hub and hub["online"] is True
+
+
+def test_worker02_node_status_maps_normal_to_online(client: TestClient, monkeypatch):
+    token = _login_as_governor(client, monkeypatch)
+    monkeypatch.setattr(app_mod, "_merged_state", lambda: {"agents": {}})
+    monkeypatch.setattr(app_mod, "_health_alerts", lambda limit=50: [])
+    monkeypatch.setattr(app_mod, "_list_events", lambda limit=30: {})
+    r = client.get("/api/governance/overview", headers=_gov_headers(token))
+    body = r.json()
+    assert body["system_status"] == "down"  # 空 agent 集 → down
+    nodes = {n["name"]: n["status"] for n in body["hub_nodes"]}
+    assert nodes["worker-02"] == "down"
+
+
+def test_topology_prefers_live_alias_row_over_stale_canonical(client: TestClient, monkeypatch):
+    # 双行并存：别名行(带心跳, 字母序靠前) + 规范行(无心跳) → 应取在线方（overview/topology 一致）
+    token = _login_as_governor(client, monkeypatch)
+    monkeypatch.setattr(
+        app_mod, "_registry_agents",
+        lambda: [{"agent_id": "AKO_identity_service_agent", "domain": "基座域"}],
+    )
+    monkeypatch.setattr(
+        app_mod, "_heartbeat_status_map",
+        lambda: {
+            "AKO_identity_service": {"online": True, "last_heartbeat": "t"},
+            "AKO_identity_service_agent": {"online": False},
+        },
+    )
+    monkeypatch.setattr(app_mod, "_load_agent_names", lambda: {})
+    monkeypatch.setattr(app_mod, "_topology_edges", lambda: [])
+    r = client.get("/api/governance/topology", headers=_gov_headers(token))
+    body = r.json()
+    assert body["online_total"] == 1, body

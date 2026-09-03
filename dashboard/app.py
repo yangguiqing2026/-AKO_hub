@@ -796,16 +796,20 @@ async def governance_topology(_gov: Dict[str, Any] = Depends(_require_governor))
     hb = _heartbeat_status_map()
     names = _load_agent_names()
 
+    # 归一键首见优先（与 _merged_state 同款）：别名行（AKO_identity_service，带心跳）先于
+    # 规范行（AKO_identity_service_agent）出现 → 双行并存时取在线方，topology/overview 计数一致
+    hb_norm: Dict[str, Dict[str, Any]] = {}
+    for k, v in hb.items():
+        hb_norm.setdefault(_norm_agent_key(k), v)
+
     by_id: Dict[str, Dict[str, Any]] = {}
     for m in registry:
         aid = m.get("agent_id", "")
         if not aid:
             continue
-        # 统一 hub 双名（注册键 AKO_hub_agent ↔ 心跳键 AKO_hub）
-        if aid == "AKO_hub_agent":
-            hb_status = hb.get("AKO_hub") or hb.get(aid) or {}
-        else:
-            hb_status = hb.get(aid) or {}
+        # 统一双名匹配：注册键（AKO_hub_agent / AKO_knowledge_agent）↔ 心跳键（AKO_hub / AKO_knowledge）
+        # 2026-09-03 修复：此前仅 hub 特判，knowledge/identity 等无后缀心跳键实体恒判离线
+        hb_status = hb_norm.get(_norm_agent_key(aid)) or hb.get(aid) or {}
         layer = _agent_layer(aid, m.get("domain", ""))
         by_id[aid] = {
             "agent_id": aid,
@@ -924,7 +928,8 @@ async def governance_overview(_gov: Dict[str, Any] = Depends(_require_governor))
         "hub_nodes": [
             {"name": "Leader", "status": "online"},
             {"name": "worker-01", "status": "online"},
-            {"name": "worker-02", "status": system_status},
+            # 2026-09-03 修复：normal 不是节点状态值，前端只认 online/degraded → worker-02 恒误红
+            {"name": "worker-02", "status": {"normal": "online", "degraded": "degraded"}.get(system_status, "down")},
             {"name": "witness-01", "status": "online"},
         ],
         "legislation": [
