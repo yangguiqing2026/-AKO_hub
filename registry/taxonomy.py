@@ -94,6 +94,9 @@ TAXONOMY: Dict[str, Dict[str, str]] = {
     "AKO_pipeline_agent": {"domain": DOMAIN_INFRASTRUCTURE, "function": FUNCTION_ORCHESTRATOR},
     "AKO_file_tag_manager": {"domain": DOMAIN_DATA, "function": FUNCTION_INGESTOR},
     "AKO_review_runner_agent": {"domain": DOMAIN_OPS, "function": FUNCTION_ANALYZER},
+    # ── 批2 全接通（2026-09-03）──
+    "AKO_standard_agent": {"domain": DOMAIN_GOVERNANCE, "function": FUNCTION_PRODUCER},
+    "AKO_client_profile_agent": {"domain": DOMAIN_COMMERCE, "function": FUNCTION_ANALYZER},
     # ── 工程域（设计 + 图纸/质检 + 图像分析 + 工程工作流） ─────
     "AKO_architect_agent": {
         "domain": DOMAIN_ENGINEERING,

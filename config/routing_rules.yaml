@@ -149,3 +149,15 @@ keyword_routes:
 - keyword: 大门
   agent_id: AKO_hub_intake_agent
   confidence: 0.8
+- keyword: 企业标准
+  agent_id: AKO_standard_agent
+  confidence: 0.9
+- keyword: 标准起草
+  agent_id: AKO_standard_agent
+  confidence: 0.85
+- keyword: 客户画像
+  agent_id: AKO_client_profile_agent
+  confidence: 0.9
+- keyword: 画像
+  agent_id: AKO_client_profile_agent
+  confidence: 0.85

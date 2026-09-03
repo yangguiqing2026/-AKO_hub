@@ -400,6 +400,33 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "source_dir": "D:/AKO/AKO_review_runner",
         "invoke_mode": "manual_gui",
     },
+    # ── 批2 全接通（2026-09-03）：standard/client_profile 纯本地链，真实可调度 ──
+    {
+        "workflow_id": "AKO_standard_agent",
+        "name": "AKO_standard_agent",
+        "spoke_type": "agent",
+        "entry_module": "agents.ako_standard_adapter",
+        "entry_function": "run",
+        "required_kb_ids": [],
+        "output_dir": "standard_output",
+        "description": "企业标准起草：Q/AKO 标准文本（Jinja2 模板链）+ GB/T 1.1 校验 + 合规审查 + 置信度，零 LLM",
+        "status": "registered",
+        "source_dir": "D:/AKO/AKO_standard_agent",
+        "invoke_mode": "importlib",
+    },
+    {
+        "workflow_id": "AKO_client_profile_agent",
+        "name": "AKO_client_profile_agent",
+        "spoke_type": "agent",
+        "entry_module": "agents.ako_client_profile_adapter",
+        "entry_function": "run",
+        "required_kb_ids": [],
+        "output_dir": "client_profile_output",
+        "description": "客户画像：沟通原文→画像 JSON+行动矩阵+结构校验（纯规则引擎，零 LLM）",
+        "status": "registered",
+        "source_dir": "D:/AKO/AKO_client_profile_agent",
+        "invoke_mode": "importlib",
+    },
 
 ]
 
