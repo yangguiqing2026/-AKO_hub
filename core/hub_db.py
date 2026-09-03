@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS task_queue (
     trigger_agent TEXT,
     trigger_type TEXT DEFAULT 'manual',
     payload TEXT,
-    status TEXT NOT NULL CHECK(status IN ('pending','running','done','failed','cancelled','draft','deploy_wait')),
+    status TEXT NOT NULL CHECK(status IN ('pending','running','done','failed','cancelled','draft','deploy_wait','manual_review')),
     output_file_ids TEXT,
     error_log TEXT,
     started_at TEXT,
@@ -62,7 +62,9 @@ CREATE TABLE IF NOT EXISTS task_queue (
     deadline TEXT,
     sla_seconds INTEGER,
     submitter TEXT DEFAULT 'external',
-    raw_payload TEXT
+    raw_payload TEXT,
+    queue TEXT DEFAULT 'main',
+    draft_wo_number TEXT
 );
 
 -- 索引
@@ -144,6 +146,8 @@ class HubDB:
             ("sla_seconds", "INTEGER"),
             ("submitter", "TEXT DEFAULT 'external'"),
             ("raw_payload", "TEXT"),
+            ("queue", "TEXT DEFAULT 'main'"),
+            ("draft_wo_number", "TEXT"),
         ]
         existing_cols = {
             c[1] for c in self._conn.execute("PRAGMA table_info(task_queue)").fetchall()
@@ -153,8 +157,8 @@ class HubDB:
                 self._conn.execute(f"ALTER TABLE task_queue ADD COLUMN {col} {ddl}")
         self._conn.commit()
 
-        # 2) 若 CHECK 约束缺少 deploy_wait，则重建表
-        if "deploy_wait" in row["sql"]:
+        # 2) 若 CHECK 约束缺少 manual_review，则重建表
+        if "manual_review" in row["sql"]:
             return
 
         self._conn.execute("PRAGMA foreign_keys=OFF")
@@ -167,7 +171,7 @@ class HubDB:
                     trigger_agent TEXT,
                     trigger_type TEXT DEFAULT 'manual',
                     payload TEXT,
-                    status TEXT NOT NULL CHECK(status IN ('pending','running','done','failed','cancelled','draft','deploy_wait')),
+                    status TEXT NOT NULL CHECK(status IN ('pending','running','done','failed','cancelled','draft','deploy_wait','manual_review')),
                     output_file_ids TEXT,
                     error_log TEXT,
                     started_at TEXT,
@@ -177,7 +181,9 @@ class HubDB:
                     deadline TEXT,
                     sla_seconds INTEGER,
                     submitter TEXT DEFAULT 'external',
-                    raw_payload TEXT
+                    raw_payload TEXT,
+                    queue TEXT DEFAULT 'main',
+                    draft_wo_number TEXT
                 );
                 INSERT INTO task_queue
                     (task_id, workflow_id, trigger_agent, trigger_type, payload, status,

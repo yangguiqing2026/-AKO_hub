@@ -140,3 +140,15 @@ keyword_routes:
 - keyword: 法务
   agent_id: AKO_law_agent
   confidence: 0.85
+- keyword: 帮我
+  agent_id: AKO_hub_intake_agent
+  confidence: 0.95
+- keyword: 我要
+  agent_id: AKO_hub_intake_agent
+  confidence: 0.9
+- keyword: 工单
+  agent_id: AKO_hub_intake_agent
+  confidence: 0.95
+- keyword: 大门
+  agent_id: AKO_hub_intake_agent
+  confidence: 0.8

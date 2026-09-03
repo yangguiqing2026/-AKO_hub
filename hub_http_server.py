@@ -11,6 +11,10 @@
 #   POST /register      -> 接收 agent_card JSON，登记并产出注册事件
 #   GET  /events/poll   -> 拉取并清空待处理事件队列
 #   POST /events        -> 手动投递事件（供 Hub 内部/其他系统触发）
+#   POST /api/v1/hub/wo/allocate       -> Intake 工单编号申请（WO-HAI-*）
+#   POST /api/v1/hub/wo/deliver        -> Intake 工单投递
+#   POST /api/v1/hub/wo/manual_review  -> 低置信度工单入人工审核队列
+#   GET  /api/v1/hub/wo/{id}           -> 工单状态查询
 # ============================================
 
 import json
@@ -105,6 +109,20 @@ class HubHTTPHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"events": events})
             return
 
+        if path.startswith("/api/v1/hub/wo/"):
+            try:
+                import hub_api
+
+                wo_number = path.rsplit("/", 1)[-1]
+                result = hub_api.get_wo_status(wo_number)
+                if result.get("status") == "not_found":
+                    self._send_json(404, result)
+                else:
+                    self._send_json(200, result)
+            except Exception as exc:
+                self._send_json(500, {"error": str(exc), "path": path})
+            return
+
         self._send_json(404, {"error": "not found", "path": path})
 
     def do_POST(self):
@@ -158,6 +176,51 @@ class HubHTTPHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ENQUEUED"})
             return
 
+        if path == "/api/v1/hub/wo/allocate":
+            try:
+                import hub_api
+
+                body = self._read_json_body()
+                draft = body.get("draft_wo_number", "")
+                if not draft:
+                    self._send_json(400, {"error": "缺少 draft_wo_number"})
+                    return
+                result = hub_api.allocate_wo(
+                    draft,
+                    body.get("module", ""),
+                    body.get("action", ""),
+                )
+                self._send_json(200, result)
+            except Exception as exc:
+                self._send_json(500, {"error": str(exc), "path": path})
+            return
+
+        if path == "/api/v1/hub/wo/deliver":
+            try:
+                import hub_api
+
+                body = self._read_json_body()
+                if not body.get("wo_number"):
+                    self._send_json(400, {"error": "缺少 wo_number"})
+                    return
+                self._send_json(200, hub_api.deliver_wo(body))
+            except Exception as exc:
+                self._send_json(500, {"error": str(exc), "path": path})
+            return
+
+        if path == "/api/v1/hub/wo/manual_review":
+            try:
+                import hub_api
+
+                body = self._read_json_body()
+                if not body.get("wo_number"):
+                    self._send_json(400, {"error": "缺少 wo_number"})
+                    return
+                self._send_json(200, hub_api.manual_review_wo(body))
+            except Exception as exc:
+                self._send_json(500, {"error": str(exc), "path": path})
+            return
+
         self._send_json(404, {"error": "not found", "path": path})
 
     def log_message(self, format, *args):
@@ -168,7 +231,7 @@ class HubHTTPHandler(BaseHTTPRequestHandler):
 def run(port: int = PORT):
     server = HTTPServer(("0.0.0.0", port), HubHTTPHandler)
     print(f"AKO_hub HTTP 服务已启动: http://0.0.0.0:{port}")
-    print("端点: GET /health | POST /register | GET /events/poll | POST /events")
+    print("端点: GET /health | POST /register | GET /events/poll | POST /events | /api/v1/hub/wo/*")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

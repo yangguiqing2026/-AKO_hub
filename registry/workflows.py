@@ -53,6 +53,20 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "source_dir": "D:/AKO/AKO_hub",
         "invoke_mode": "importlib",
     },
+    # ── AKO_hub_intake_agent（工厂大门） ─────────────────────────
+    {
+        "workflow_id": "AKO_hub_intake_agent",
+        "name": "AKO_hub_intake_agent",
+        "spoke_type": "agent",
+        "entry_module": "agents.ako_intake_adapter",
+        "entry_function": "run",
+        "required_kb_ids": ["ako_taoli_general_arch"],
+        "output_dir": "intake_output",
+        "description": "工厂唯一大门：自然语言→ako1 工单，P0 歧义消解 + M07 独立评审后投递",
+        "status": "registered",
+        "source_dir": "D:/AKO/AKO_hub_intake_agent",
+        "invoke_mode": "importlib",
+    },
     # ── AKO_architect_agent（1 个） ─────────────────────────────
     {
         "workflow_id": "AKO_architect_agent",

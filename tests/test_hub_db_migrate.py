@@ -88,10 +88,11 @@ def test_migrate_idempotent():
         n = conn.execute("SELECT COUNT(*) AS c FROM task_queue").fetchone()[0]
         assert n == 2
         cols = {r[1] for r in conn.execute("PRAGMA table_info(task_queue)").fetchall()}
-        # 列数量不因重复迁移而膨胀
-        assert len(cols) == 16
+        # 列数量不因重复迁移而膨胀（10 原列 + 6 旧新增 + queue/draft_wo_number 批0 新增 = 18）
+        assert len(cols) == 18
+        assert {"queue", "draft_wo_number"} <= cols
         conn.close()
-        print("  [PASS] 迁移幂等：数据无重复、列数稳定(16)")
+        print("  [PASS] 迁移幂等：数据无重复、列数稳定(18)")
 
 
 if __name__ == "__main__":
