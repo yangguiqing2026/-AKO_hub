@@ -1,3 +1,7 @@
+# governor_access.yaml — 治理指挥室（governor 视图）授权白名单
+# 语义：身份注册册（AKO_identity_service/human_identities.yaml, active）指纹验证通过
+#       + 本表 human_id 命中 → 治理者会话（登录态 role 由服务端固定为 governor）。
+# role 字段为身份册角色元信息，仅展示用，不参与鉴权。
 governors:
 - human_id: HUM-YANGGUIQING-001
   name: 杨贵清

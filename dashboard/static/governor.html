@@ -1135,7 +1135,7 @@ drawTopology();
 
   async function load() {
     try {
-      var r = await fetch("/api/governance/overview");
+      var r = await govFetch("/api/governance/overview");
       var o = await r.json();
       renderMetrics(o);
       if (!window.TOPO) renderHeatmap(o.agents.list || []);
@@ -1145,7 +1145,7 @@ drawTopology();
       renderLegislation(o.legislation || []);
       applyLiveAgents(o);
       try {
-        var tr = await fetch("/api/governance/topology");
+        var tr = await govFetch("/api/governance/topology");
         var t = await tr.json();
         window.TOPO = t;
         renderHeatmap(t.rings ? [] : []);
@@ -1163,6 +1163,37 @@ drawTopology();
   function showLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "flex"; }
   function hideLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "none"; }
 
+  // 治理数据请求须携带会话 token（服务端 401 即失效 → 清会话弹登录）
+  function govToken() {
+    try {
+      var raw = localStorage.getItem("ako_gov");
+      if (!raw) return "";
+      var s = JSON.parse(raw);
+      if (Date.now() - s.t >= 12 * 3600 * 1000) return "";
+      return s.token || "";
+    } catch (e) { return ""; }
+  }
+  function govFetch(url, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    var tok = govToken();
+    if (tok) opts.headers["Authorization"] = "Bearer " + tok;
+    return fetch(url, opts).then(function (r) {
+      if (r.status === 401) {
+        try {
+          // 仅当存储的仍是本次请求的旧 token 才清除 —— 防止在途 401 抹掉刚重登的新会话
+          var cur = JSON.parse(localStorage.getItem("ako_gov") || "{}");
+          if (!cur.token || cur.token === tok) { localStorage.removeItem("ako_gov"); showLogin(); }
+        } catch (e) { localStorage.removeItem("ako_gov"); showLogin(); }
+        return Promise.reject(new Error("治理会话已过期，请重新登录"));
+      }
+      return r;
+    });
+  }
+  // 单例轮询：登录/恢复/401 后重登只保留一个定时器
+  var _pollTimer = null;
+  function startPoll() { if (_pollTimer) clearInterval(_pollTimer); _pollTimer = setInterval(load, 5000); }
+
   async function attemptLogin() {
     var input = $id("fingerprint-input");
     var err = $id("login-error");
@@ -1177,10 +1208,11 @@ drawTopology();
       var r = await resp.json();
       if (r.status === "ok") {
         currentUser = r.name || "治理者";
-        try { localStorage.setItem("ako_gov", JSON.stringify({ name: currentUser, t: Date.now() })); } catch (e) {}
+        if (!r.token) { if (err) err.textContent = "登录服务未签发会话，请联系体系管理员"; return; }
+        try { localStorage.setItem("ako_gov", JSON.stringify({ name: currentUser, t: Date.now(), token: r.token })); } catch (e) {}
         hideLogin();
         load();
-        setInterval(load, 5000);
+        startPoll();
       } else {
         if (err) err.textContent = r.message || "指纹不匹配";
         if (input) { input.value = ""; input.focus(); }
@@ -1205,11 +1237,11 @@ drawTopology();
       var raw = localStorage.getItem("ako_gov");
       if (!raw) { showLogin(); return; }
       var sess = JSON.parse(raw);
-      if (Date.now() - sess.t < 12 * 3600 * 1000) {
+      if (Date.now() - sess.t < 12 * 3600 * 1000 && sess.token) {
         currentUser = sess.name || "治理者";
         hideLogin();
         load();
-        setInterval(load, 5000);
+        startPoll();
         return;
       }
       localStorage.removeItem("ako_gov");

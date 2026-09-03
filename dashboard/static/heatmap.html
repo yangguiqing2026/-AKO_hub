@@ -204,15 +204,67 @@ body {
 
   async function load() {
     try {
-      var tr = await fetch("/api/governance/topology");
+      var tr = await govFetch("/api/governance/topology");
       var t = await tr.json();
+      if (!t || !t.rings) throw new Error("拓扑数据为空或格式异常");
       window.TOPO = t;
       renderHeatmap();
-    } catch (e) { /* 暂不可用 */ }
+      hideLoadError();
+    } catch (e) {
+      // 网络失败 / 5xx / 数据异常不再静默：显示错误条，靠 startPoll 每 5s 自动恢复
+      showLoadError(e && e.message ? e.message : "数据加载失败，稍后自动重试");
+    }
+  }
+  function showLoadError(msg) {
+    var grid = $id("heatmap-grid");
+    if (!grid) return;
+    var bar = $id("heatmap-err");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "heatmap-err";
+      bar.style.cssText = "padding:8px 12px;color:#E8A35C;border:1px dashed #7A5A2E;border-radius:4px;margin-bottom:10px;font-size:13px;";
+      grid.parentNode.insertBefore(bar, grid);
+    }
+    bar.textContent = "⚠️ " + msg;
+  }
+  function hideLoadError() {
+    var bar = $id("heatmap-err");
+    if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
   }
 
   function showLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "flex"; }
   function hideLogin() { var ov = $id("login-overlay"); if (ov) ov.style.display = "none"; }
+
+  // 治理数据请求须携带会话 token（服务端 401 即失效 → 清会话弹登录）
+  function govToken() {
+    try {
+      var raw = localStorage.getItem("ako_gov");
+      if (!raw) return "";
+      var s = JSON.parse(raw);
+      if (Date.now() - s.t >= 12 * 3600 * 1000) return "";
+      return s.token || "";
+    } catch (e) { return ""; }
+  }
+  function govFetch(url, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    var tok = govToken();
+    if (tok) opts.headers["Authorization"] = "Bearer " + tok;
+    return fetch(url, opts).then(function (r) {
+      if (r.status === 401) {
+        try {
+          // 仅当存储的仍是本次请求的旧 token 才清除 —— 防止在途 401 抹掉刚重登的新会话
+          var cur = JSON.parse(localStorage.getItem("ako_gov") || "{}");
+          if (!cur.token || cur.token === tok) { localStorage.removeItem("ako_gov"); showLogin(); }
+        } catch (e) { localStorage.removeItem("ako_gov"); showLogin(); }
+        return Promise.reject(new Error("治理会话已过期，请重新登录"));
+      }
+      return r;
+    });
+  }
+  // 单例轮询：登录/恢复/401 后重登只保留一个定时器
+  var _pollTimer = null;
+  function startPoll() { if (_pollTimer) clearInterval(_pollTimer); _pollTimer = setInterval(load, 5000); }
 
   async function attemptLogin() {
     var input = $id("fingerprint-input");
@@ -228,12 +280,13 @@ body {
       var r = await resp.json();
       if (r.status === "ok") {
         currentUser = r.name || "治理者";
-        try { localStorage.setItem("ako_gov", JSON.stringify({ name: currentUser, t: Date.now() })); } catch (e) {}
+        if (!r.token) { if (err) err.textContent = "登录服务未签发会话，请联系体系管理员"; return; }
+        try { localStorage.setItem("ako_gov", JSON.stringify({ name: currentUser, t: Date.now(), token: r.token })); } catch (e) {}
         var tag = $id("user-tag");
         if (tag) tag.textContent = "👤 " + currentUser;
         hideLogin();
         await load();
-        setInterval(load, 5000);
+        startPoll();
       } else {
         if (err) err.textContent = r.message || "指纹不匹配";
         if (input) { input.value = ""; input.focus(); }
@@ -258,13 +311,13 @@ body {
       var raw = localStorage.getItem("ako_gov");
       if (!raw) { showLogin(); return; }
       var sess = JSON.parse(raw);
-      if (Date.now() - sess.t < 12 * 3600 * 1000) {
+      if (Date.now() - sess.t < 12 * 3600 * 1000 && sess.token) {
         currentUser = sess.name || "治理者";
         var tag = $id("user-tag");
         if (tag) tag.textContent = "👤 " + currentUser;
         hideLogin();
         load();
-        setInterval(load, 5000);
+        startPoll();
         return;
       }
       localStorage.removeItem("ako_gov");

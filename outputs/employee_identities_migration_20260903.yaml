@@ -1,3 +1,7 @@
+# employee_identities_migration_20260903.yaml — 员工身份迁移数据源（勿作为运行配置引用）
+# 来源：git HEAD config/employee_access.yaml（2026-09-03 dashboard 员工台退役时删除）
+# 用途：AKO_identity_service 人类身份注册册扩充的迁移输入（10 名员工 salt+fingerprint_hash）
+# 注意：本文件仅留档数据，dashboard 无任何代码读取；员工登录统一走 identity 服务（唯一法源）
 employees:
 - name: 周明静
   salt: 42464e
