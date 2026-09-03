@@ -19,7 +19,7 @@ def run(
     intent: str = "",
     project_tag: str = "taoli",
     action: str = "",
-    platform: str = "all",
+    platform: str = "",  # 空/None/all → 不指定平台（media_crawler 无 'all' 平台，2026-09-03 修复漂移）
     _hub_output_dir: str = "",
     _hub_db_path: str = "",
     _hub_chroma_root: str = "",
@@ -47,13 +47,17 @@ def run(
         if not action:
             action = "pipeline"
 
-    # 平台映射
+    # 平台映射（平台名与 media config.yaml platforms 对齐：wechat/douyin/xhs）
     if "抖音" in intent:
         platform = "douyin"
     elif "公众号" in intent or "微信" in intent:
         platform = "wechat"
     elif "小红书" in intent:
-        platform = "xiaohongshu"
+        platform = "xhs"  # 2026-09-03 修正：原 xiaohongshu 与配置平台名漂移
+
+    # 归一化：空/'all' → None（run_crawl 以 None 跳过平台级抓取，仅跑监控/趋势）
+    if not platform or platform == "all":
+        platform = None
 
     if str(SOURCE_DIR) not in sys.path:
         sys.path.insert(0, str(SOURCE_DIR))
