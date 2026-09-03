@@ -6,6 +6,9 @@
 # ============================================================
 
 layers:
+  大门层:
+    - AKO_hub_intake_agent
+
   知识层:
     - AKO_knowledge_agent
     - AKO_kb_agent

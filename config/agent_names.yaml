@@ -7,6 +7,7 @@
 
 agents:
   AKO_hub: 总线调度中枢
+  AKO_hub_intake_agent: 任务大门
   AKO_architect_agent: 建筑设计
   AKO_drawing_inspector: 图纸质检
   AKO_image_analyzer_agent: 图像分析
