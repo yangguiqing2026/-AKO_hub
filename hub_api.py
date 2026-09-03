@@ -162,6 +162,165 @@ def submit_task(payload: Dict[str, Any], task_id: Optional[str] = None,
         }
 
 
+# ── API 1b: Intake 工单（allocate / deliver / manual_review / status）─────
+
+def _next_wo_number(db_path: str) -> str:
+    """生成下一个 WO-HAI-YYYYMMDD-NNN 正式工单号。"""
+    today = datetime.now().strftime("%Y%m%d")
+    with HubDB(db_path) as db:
+        rows = db.fetchall(
+            "SELECT task_id FROM task_queue WHERE task_id LIKE ?",
+            (f"WO-HAI-{today}-%",),
+        )
+    max_seq = 0
+    for row in rows:
+        suffix = str(row.get("task_id", "")).rsplit("-", 1)[-1]
+        if suffix.isdigit():
+            max_seq = max(max_seq, int(suffix))
+    return f"WO-HAI-{today}-{max_seq + 1:03d}"
+
+
+def allocate_wo(
+    draft_wo_number: str,
+    module: str,
+    action: str,
+    trigger_agent: str = "AKO_hub_intake_agent",
+    ttl_seconds: int = 300,
+) -> Dict[str, Any]:
+    """Intake 编号申请：返回正式工单号（幂等键 = draft_wo_number）。"""
+    paths = _resolve_paths()
+    now = datetime.now().isoformat()
+    with HubDB(paths["db_path"]) as db:
+        existing = db.fetchone(
+            "SELECT * FROM task_queue WHERE draft_wo_number = ?", (draft_wo_number,)
+        )
+        if existing:
+            return {
+                "status": "allocated",
+                "formal_wo_number": existing["task_id"],
+                "allocated_at": existing.get("started_at") or now,
+                "ttl_seconds": ttl_seconds,
+                "idempotent": True,
+            }
+        formal = _next_wo_number(paths["db_path"])
+        db.execute(
+            """
+            INSERT INTO task_queue
+                (task_id, workflow_id, trigger_agent, trigger_type, status,
+                 queue, draft_wo_number, submitter, started_at, raw_payload)
+            VALUES (?, ?, ?, 'intake', 'draft', 'main', ?, ?, ?, ?)
+            """,
+            (
+                formal,
+                module,
+                trigger_agent,
+                draft_wo_number,
+                trigger_agent,
+                now,
+                json.dumps({"draft_wo_number": draft_wo_number, "module": module, "action": action}, ensure_ascii=False),
+            ),
+        )
+    return {
+        "status": "allocated",
+        "formal_wo_number": formal,
+        "allocated_at": now,
+        "ttl_seconds": ttl_seconds,
+        "idempotent": False,
+    }
+
+
+def _wo_ack(wo_number: str, db: HubDB) -> Dict[str, Any]:
+    """构造 ACK 负载。"""
+    pending = db.fetchone("SELECT COUNT(*) AS cnt FROM task_queue WHERE status='pending'")
+    return {
+        "status": "acknowledged",
+        "wo_number": wo_number,
+        "queue_position": int(pending["cnt"]) if pending else 0,
+        "estimated_start": datetime.now().isoformat(),
+        "hub_trace_id": f"hub-trace-{wo_number}",
+    }
+
+
+def deliver_wo(wo: Dict[str, Any], trigger_agent: str = "AKO_hub_intake_agent") -> Dict[str, Any]:
+    """投递正式工单（幂等：按 wo_number 覆盖状态为 pending）。"""
+    paths = _resolve_paths()
+    wo_number = str(wo.get("wo_number", "")).strip()
+    if not wo_number:
+        return {"status": "FAIL", "reason": "缺少 wo_number"}
+    module = str(wo.get("module", "")).strip() or "AKO_hub_agent"
+    now = datetime.now().isoformat()
+    with HubDB(paths["db_path"]) as db:
+        existing = db.fetchone("SELECT task_id FROM task_queue WHERE task_id=?", (wo_number,))
+        if existing:
+            db.execute(
+                """
+                UPDATE task_queue
+                SET status='pending', queue='main', workflow_id=?, trigger_agent=?,
+                    trigger_type='intake', raw_payload=?, submitter=?, started_at=?
+                WHERE task_id=?
+                """,
+                (module, trigger_agent, json.dumps(wo, ensure_ascii=False), trigger_agent, now, wo_number),
+            )
+        else:
+            db.execute(
+                """
+                INSERT INTO task_queue
+                    (task_id, workflow_id, trigger_agent, trigger_type, status,
+                     queue, submitter, started_at, raw_payload)
+                VALUES (?, ?, ?, 'intake', 'pending', 'main', ?, ?, ?)
+                """,
+                (wo_number, module, trigger_agent, trigger_agent, now, json.dumps(wo, ensure_ascii=False)),
+            )
+        ack = _wo_ack(wo_number, db)
+    return ack
+
+
+def manual_review_wo(wo: Dict[str, Any]) -> Dict[str, Any]:
+    """低置信度工单入人工审核队列。"""
+    paths = _resolve_paths()
+    wo_number = str(wo.get("wo_number", "")).strip()
+    if not wo_number:
+        return {"status": "FAIL", "reason": "缺少 wo_number"}
+    now = datetime.now().isoformat()
+    with HubDB(paths["db_path"]) as db:
+        existing = db.fetchone("SELECT task_id FROM task_queue WHERE task_id=?", (wo_number,))
+        if existing:
+            # 注意：task_queue 无 updated_at 列（schema 仅 started_at/finished_at），
+            # 入人工审核队列不改写创建时间，仅更新状态与载荷。
+            db.execute(
+                "UPDATE task_queue SET status='manual_review', queue='manual_review', raw_payload=? WHERE task_id=?",
+                (json.dumps(wo, ensure_ascii=False), wo_number),
+            )
+        else:
+            db.execute(
+                """
+                INSERT INTO task_queue
+                    (task_id, workflow_id, trigger_agent, trigger_type, status,
+                     queue, submitter, started_at, raw_payload)
+                VALUES (?, ?, ?, 'intake', 'manual_review', 'manual_review', ?, ?, ?)
+                """,
+                (
+                    wo_number,
+                    str(wo.get("module", "")).strip() or "AKO_hub_agent",
+                    "AKO_hub_intake_agent",
+                    "AKO_hub_intake_agent",
+                    now,
+                    json.dumps(wo, ensure_ascii=False),
+                ),
+            )
+    return {"status": "queued", "queue": "manual_review", "wo_number": wo_number}
+
+
+def get_wo_status(wo_number: str) -> Dict[str, Any]:
+    """查询工单状态。"""
+    paths = _resolve_paths()
+    with HubDB(paths["db_path"]) as db:
+        row = db.fetchone("SELECT * FROM task_queue WHERE task_id=?", (wo_number,))
+    if not row:
+        return {"status": "not_found", "wo_number": wo_number}
+    return row
+
+
 # ── API 2: sync_check ────────────────────────────────────────────
 
 def sync_check(project_tag: str = "", verbose: bool = False) -> Dict[str, Any]:
