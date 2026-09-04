@@ -123,6 +123,52 @@ class HubHTTPHandler(BaseHTTPRequestHandler):
                 self._send_json(500, {"error": str(exc), "path": path})
             return
 
+        if path.startswith("/api/v1/hub/task/") and path.endswith("/result"):
+            # 2026-09-04：任务执行结果只读接口（供 intake 大门对话回显结果与下载）
+            try:
+                import json
+
+                import hub_api
+                from core.hub_db import HubDB
+
+                task_id = path.rsplit("/", 2)[-2]
+                paths = hub_api._resolve_paths()
+                with HubDB(paths["db_path"]) as db:
+                    row = db.fetchone(
+                        "SELECT task_id, workflow_id, status, error_log, output_file_ids "
+                        "FROM task_queue WHERE task_id=?",
+                        (task_id,),
+                    )
+                if not row:
+                    self._send_json(404, {"status": "not_found", "task_id": task_id})
+                    return
+                ids = json.loads(row.get("output_file_ids") or "[]") if isinstance(row.get("output_file_ids"), str) else (row.get("output_file_ids") or [])
+                files = []
+                if ids:
+                    with HubDB(paths["db_path"]) as db:
+                        for fid in ids:
+                            fr = db.fetchone(
+                                "SELECT file_id, rel_path, abs_path, file_size FROM file_registry WHERE file_id=?",
+                                (fid,),
+                            )
+                            if fr:
+                                files.append({
+                                    "file_id": fr["file_id"],
+                                    "rel_path": fr.get("rel_path", ""),
+                                    "abs_path": fr.get("abs_path", ""),
+                                    "size": fr.get("file_size"),
+                                })
+                self._send_json(200, {
+                    "task_id": row["task_id"],
+                    "workflow_id": row["workflow_id"],
+                    "status": row["status"],
+                    "summary": row.get("error_log") or "",
+                    "files": files,
+                })
+            except Exception as exc:
+                self._send_json(500, {"error": str(exc), "path": path})
+            return
+
         self._send_json(404, {"error": "not found", "path": path})
 
     def do_POST(self):
