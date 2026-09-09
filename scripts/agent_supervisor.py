@@ -128,19 +128,26 @@ def probe_monitor(ap: AgentProc) -> bool:
 
 
 def probe_quote(ap: AgentProc) -> bool:
-    """quote 服务无自开 HTTP：以其在 registry(5024) 的自注册为存活判据。"""
-    import json as _json
+    """quote 服务无自开 HTTP：以其在 hub(:5000) 心跳 DB 的最近上报为存活判据。
 
+    2026-09-09：此前查 registry(5024) 自注册；quote 心跳已改指 hub :5000
+    （registry_url 见 quote config.yaml），5024 不再有 quote 上报，继续查
+    5024 会误判死亡触发反复重启。hub 收心跳即登记 agents_registry。
+    """
     if ap.proc is None or ap.proc.poll() is not None:
         return False
     try:
-        with requests.get(
-            "http://127.0.0.1:5024/ako/api/v1/registry/agents", timeout=5
-        ) as r:
+        with requests.get("http://127.0.0.1:5000/agents", timeout=5) as r:
             data = r.json()
-        agents = data.get("agents", data) if isinstance(data, dict) else data
-        ids = agents.keys() if isinstance(agents, dict) else [a.get("agent_id", "") for a in agents if isinstance(a, dict)]
-        return "AKO_quote_agent" in set(ids)
+        agents = data.get("agents", []) if isinstance(data, dict) else []
+        for a in agents:
+            if a.get("agent_id") == "AKO_quote_agent":
+                # 最近心跳 ≤ 90s 判定存活（quote 心跳间隔 60s + 裕度）
+                try:
+                    return int(a.get("seconds_ago", 999)) <= 90
+                except (TypeError, ValueError):
+                    return False
+        return False
     except Exception:
         return False
 
