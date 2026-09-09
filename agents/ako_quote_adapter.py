@@ -43,6 +43,10 @@ def run(
     thickness: int = int(thickness_raw) if thickness_raw not in (None, "", _none) else 150
     # 空串（专家模式未填/旧载荷）回退 project_tag，避免脏文件名与空抬头
     project_name = str(kwargs.get("project_name") or "").strip() or project_tag
+    # 2026-09-09：清理复述式抬头（intake 澄清答复现已在源头剥离；此处兜底旧载荷
+    # 与其他调用方——"测试项目名称是测试项目A" → "测试项目A"）
+    import re as _re_pn
+    project_name = (_re_pn.sub(r"^.*?项目(?:名|名称)?(?:是|叫|为|：|:)\s*", "", project_name) or project_name).strip() or project_tag
     contact = kwargs.get("contact", "")
     phone = kwargs.get("phone", "")
     box_type = kwargs.get("box_type", None)

@@ -82,3 +82,12 @@ def test_no_area_in_text_falls_back_to_default(tmp_path, monkeypatch) -> None:
     mod = _load()
     out = _run(mod, tmp_path, monkeypatch, action="出个报价", raw_input="帮我出份报价", project_tag="taoli")
     assert out["_form"]["area"] == 100.0  # 默认
+
+
+def test_project_name_strip_repeat_prefix(tmp_path, monkeypatch) -> None:
+    """2026-09-09：复述式抬头兜底清洗（“测试项目名称是测试项目A” → “测试项目A”）。"""
+    mod = _load()
+    out = _run(mod, tmp_path, monkeypatch,
+               project_name="测试项目名称是测试项目A",
+               action="出报价", raw_input="外墙500平方米", project_tag="taoli")
+    assert out["_form"]["project_name"] == "测试项目A"
