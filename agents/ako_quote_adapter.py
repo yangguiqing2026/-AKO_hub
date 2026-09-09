@@ -1,6 +1,6 @@
 """
 AKO Hub — AKO_quote 适配器
-将 D:\AKO\AKO_quote_agent (装配式建筑报价引擎) 包装为 Hub Spoke。
+将 D:/AKO/AKO_quote_agent (装配式建筑报价引擎) 包装为 Hub Spoke。
 """
 import sys
 import json
@@ -20,36 +20,63 @@ def run(
     _hub_file_root: str = "",
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Spoke 适配器入口。从 intent/kwargs 提取表单数据 → calculate_quote → JSON 文件。"""
+    """Spoke 适配器入口。从 intent/action/kwargs 提取表单数据 → calculate_quote
+    → JSON 数据 + PDF 报价单。
+
+    2026-09-04 修复：
+    1. 载荷文本源合并 intent 与 action——intake 大门投递载荷无顶层 intent，
+       主文本在 action 字段，此前只读 intent → 工单全部落默认参数；
+    2. 交付物补 PDF：复用 quote_agent 自带 pdf_generator（其标准产品流即 PDF），
+       PDF 生成失败不阻断，仍回退 JSON 数据文件。
+    """
     output_dir = Path(_hub_output_dir) if _hub_output_dir else Path.cwd() / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 从 intent 提取参数（简单关键词匹配）
-    area = kwargs.get("area", 100.0)
-    wall_type = kwargs.get("wall_type", "外墙")
-    thickness = kwargs.get("thickness", 150)
-    project_name = kwargs.get("project_name", project_tag)
+    # 参数提取：结构化 kwargs 显式值优先；缺失字段才回退文本解析（2026-09-09 修复：
+    # 此前 kwargs.area 无条件被文本覆盖、raw_input 未并入致面积落默认 100㎡ 与输入不一致）
+    _none = object()
+    area_raw = kwargs.get("area", _none)
+    wall_type_raw = kwargs.get("wall_type", _none)
+    thickness_raw = kwargs.get("thickness", _none)
+    area: float = float(area_raw) if area_raw not in (None, "", _none) else 100.0
+    wall_type: str = str(wall_type_raw) if wall_type_raw not in (None, "", _none) else "外墙"
+    thickness: int = int(thickness_raw) if thickness_raw not in (None, "", _none) else 150
+    # 空串（专家模式未填/旧载荷）回退 project_tag，避免脏文件名与空抬头
+    project_name = str(kwargs.get("project_name") or "").strip() or project_tag
     contact = kwargs.get("contact", "")
     phone = kwargs.get("phone", "")
     box_type = kwargs.get("box_type", None)
     transport_distance = kwargs.get("transport_distance", 50)
 
-    # intent 中文解析：面积/墙型/厚度
-    if intent:
+    # 合并文本源：raw_input（intake 大门透传的用户原始需求全文，含报价参数）+ intent/action
+    action = str(kwargs.get("action", "")).strip()
+    raw_input_text = str(kwargs.get("raw_input") or "").strip()
+    raw_text = " ".join(t for t in (raw_input_text, intent, action) if t)
+
+    if raw_text:
         import re as _re
-        area_match = _re.search(r"(\d+)\s*[平㎡]", intent)
-        if area_match:
-            area = float(area_match.group(1))
-        if "内墙" in intent:
-            wall_type = "内墙"
-        elif "隔墙" in intent:
-            wall_type = "隔墙"
-        elif "外墙" in intent:
-            wall_type = "外墙"
-        thick_match = _re.search(r"(\d+)\s*mm", intent)
-        if thick_match:
-            thickness = int(thick_match.group(1))
-        name_match = _re.search(r"项目[：:]\s*(\S+)", intent)
+        # 面积：优先取「面积」语义后最近的一个数值+面积单位；否则全文第一个。
+        # 支持小数（如 123.5㎡）与 平方米/平米/㎡ 变体。
+        if area_raw in (None, "", _none):
+            segment = raw_text
+            idx = _re.search(r"面积", raw_text)
+            if idx:
+                segment = raw_text[idx.end():][:40]
+            area_match = _re.search(r"(\d+(?:\.\d+)?)\s*(?:㎡|平方米|平米|平)", segment)
+            if area_match:
+                area = float(area_match.group(1))
+        if wall_type_raw in (None, "", _none):
+            if "内墙" in raw_text:
+                wall_type = "内墙"
+            elif "隔墙" in raw_text:
+                wall_type = "隔墙"
+            elif "外墙" in raw_text:
+                wall_type = "外墙"
+        if thickness_raw in (None, "", _none):
+            thick_match = _re.search(r"(\d+)\s*mm", raw_text)
+            if thick_match:
+                thickness = int(thick_match.group(1))
+        name_match = _re.search(r"项目[：:]\s*(\S+)", raw_text)
         if name_match:
             project_name = name_match.group(1)
 
@@ -88,9 +115,23 @@ def run(
             f"报价完成: {project_name}, {area}㎡ {wall_type} {thickness}mm, "
             f"总计 {result['total']:.2f} 元"
         )
+        output_files = [str(quote_file)]
+
+        # PDF 报价单（2026-09-04：quote_agent 标准交付物为 PDF；失败仅降级不阻断）
+        task_ref = str(kwargs.get("wo_number") or kwargs.get("task_id") or "")
+        try:
+            from pdf_generator import generate_pdf
+
+            pdf_path = generate_pdf(result, task_ref, output_dir=str(output_dir))
+            output_files.append(pdf_path)
+            summary += f"，PDF 报价单: {Path(pdf_path).name}"
+        except ImportError as e:
+            print(f"[WARN] ako_quote_adapter: pdf_generator 导入失败，仅输出 JSON: {e}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[WARN] ako_quote_adapter: PDF 生成失败，仅输出 JSON: {type(e).__name__}: {e}")
 
         return {
-            "output_files": [str(quote_file)],
+            "output_files": output_files,
             "summary": summary,
             "error": None,
         }
