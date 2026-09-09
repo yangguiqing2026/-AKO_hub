@@ -175,57 +175,89 @@ def post_heartbeat(agent_id: str, alive: bool) -> None:
     except Exception as e:
         print(f"[supervisor] heartbeat failed {agent_id}: {e}")
 
-def _another_supervisor_running() -> bool:
-    """是否存在其它 agent_supervisor 实例（按命令行匹配 python 进程，排除自己）。
+# 2026-09-09 防复发：pid 锁文件（文件系统事实，绕开解释器 shim/进程枚举歧义）。
+# 多触发源（计划任务 /run、开机、不同解释器）并存曾致多 supervisor 各拉整套
+# agent → 每 agent 双/多实例抢端口。锁文件持存活 pid 即视为另一实例在位。
+SUPERVISOR_LOCK = Path(__file__).resolve().parent.parent / "logs" / "supervisor.lck"
 
-    2026-09-09 防复发：此前多触发源（计划任务 /run、开机、不同解释器）可并存
-    多个 supervisor，各自把整套 agent 用自身解释器拉起一遍 → 每 agent 双实例
-    （registry/quote/guardian 等曾 2-3 份并存抢端口）。
-    """
-    me = os.getpid()
+
+def _is_live_supervisor(pid: int) -> bool:
+    """pid 存活且确为 agent_supervisor（防 pid 复用误判）。"""
     try:
-        for p in psutil.process_iter(["pid", "name", "cmdline"]):
-            if p.info.get("pid") == me:
-                continue
-            name = (p.info.get("name") or "").lower()
-            if not name.startswith("python"):
-                continue
-            cl = p.info.get("cmdline") or []
-            if any("agent_supervisor.py" in str(c) for c in cl):
-                return True
+        p = psutil.Process(pid)
+        cl = p.cmdline() or []
+        return any("agent_supervisor.py" in str(c) for c in cl)
     except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
+
+
+def _acquire_singleton() -> bool:
+    """接管 pid 锁；另一活 supervisor 在位则返回 False。"""
+    if SUPERVISOR_LOCK.exists():
+        try:
+            old = int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
+            if _is_live_supervisor(old):
+                return False
+        except (ValueError, OSError):
+            pass
+    SUPERVISOR_LOCK.write_text(str(os.getpid()), encoding="utf-8")
+    return True
+
+
+def _release_singleton() -> None:
+    try:
+        if SUPERVISOR_LOCK.exists():
+            cur = int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
+            if cur == os.getpid():
+                SUPERVISOR_LOCK.unlink()
+    except (ValueError, OSError):
         pass
-    return False
 
 
 def _agent_already_running(ap: AgentProc) -> bool:
-    """该 agent 是否已有实例在跑（同命令尾部 python 进程存在，排除自己）。
+    """该 agent 是否已有实例在跑（同命令尾部 + 同 cwd 的 python 进程，排除自己）。
 
     2026-09-09 防复发：第二 supervisor 或重复 start 时不再重复拉起同一 agent。
+    须带 cwd 判定：多 agent 命令尾部同为 "app.py"（quote/guardian），且 hub
+    (pythonw app.py) 也在跑——只比尾部会把 hub 误判为 quote 已在线而 skip。
     """
     if len(ap.cmd) < 2:
         return False
     tail = " ".join(ap.cmd[1:])
     me = os.getpid()
-    try:
-        for p in psutil.process_iter(["pid", "name", "cmdline"]):
+    for p in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
             if p.info.get("pid") == me:
                 continue
             name = (p.info.get("name") or "").lower()
             if not name.startswith("python"):
                 continue
             cl = p.info.get("cmdline") or []
-            if len(cl) > 1 and " ".join(cl[1:]) == tail:
-                return True
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
+            if len(cl) <= 1 or " ".join(cl[1:]) != tail:
+                continue
+            try:
+                if str(p.cwd()).lower() == str(ap.cwd).lower():
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # cwd 不可读：仅尾部匹配时要求非 pythonw（排除 hub 误判）
+                if not name.endswith("pythonw"):
+                    return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
     return False
 
 
 def main() -> None:
-    if _another_supervisor_running():
-        print("[supervisor] 另一 supervisor 实例已在运行 - 退出（防双实例）")
+    if not _acquire_singleton():
+        print("[supervisor] 另一 supervisor 实例已在运行（pid 锁） - 退出（防双实例）")
         return
+    try:
+        _main_loop()
+    finally:
+        _release_singleton()
+
+
+def _main_loop() -> None:
     agents = [
         AgentProc(
             "AKO_qc_agent",
