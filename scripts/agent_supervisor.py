@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
+import os
 import subprocess
 import sys
 import time
@@ -174,7 +175,57 @@ def post_heartbeat(agent_id: str, alive: bool) -> None:
     except Exception as e:
         print(f"[supervisor] heartbeat failed {agent_id}: {e}")
 
+def _another_supervisor_running() -> bool:
+    """是否存在其它 agent_supervisor 实例（按命令行匹配 python 进程，排除自己）。
+
+    2026-09-09 防复发：此前多触发源（计划任务 /run、开机、不同解释器）可并存
+    多个 supervisor，各自把整套 agent 用自身解释器拉起一遍 → 每 agent 双实例
+    （registry/quote/guardian 等曾 2-3 份并存抢端口）。
+    """
+    me = os.getpid()
+    try:
+        for p in psutil.process_iter(["pid", "name", "cmdline"]):
+            if p.info.get("pid") == me:
+                continue
+            name = (p.info.get("name") or "").lower()
+            if not name.startswith("python"):
+                continue
+            cl = p.info.get("cmdline") or []
+            if any("agent_supervisor.py" in str(c) for c in cl):
+                return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
+    return False
+
+
+def _agent_already_running(ap: AgentProc) -> bool:
+    """该 agent 是否已有实例在跑（同命令尾部 python 进程存在，排除自己）。
+
+    2026-09-09 防复发：第二 supervisor 或重复 start 时不再重复拉起同一 agent。
+    """
+    if len(ap.cmd) < 2:
+        return False
+    tail = " ".join(ap.cmd[1:])
+    me = os.getpid()
+    try:
+        for p in psutil.process_iter(["pid", "name", "cmdline"]):
+            if p.info.get("pid") == me:
+                continue
+            name = (p.info.get("name") or "").lower()
+            if not name.startswith("python"):
+                continue
+            cl = p.info.get("cmdline") or []
+            if len(cl) > 1 and " ".join(cl[1:]) == tail:
+                return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
+    return False
+
+
 def main() -> None:
+    if _another_supervisor_running():
+        print("[supervisor] 另一 supervisor 实例已在运行 - 退出（防双实例）")
+        return
     agents = [
         AgentProc(
             "AKO_qc_agent",
@@ -251,9 +302,13 @@ def main() -> None:
         ),
     ]
 
-    # start real processes
+    # start real processes（2026-09-09：已在线 agent 跳过，防双实例）
     for ap in agents:
         try:
+            if _agent_already_running(ap):
+                print(f"[supervisor] {ap.agent_id} 已有实例在跑 - skip")
+                ap.proc = None  # 不接管既有实例（探针走 HTTP/进程，不依赖 proc 句柄）
+                continue
             ap.start()
             print(f"[supervisor] started {ap.agent_id} (pid={ap.proc.pid})")
         except Exception as e:
