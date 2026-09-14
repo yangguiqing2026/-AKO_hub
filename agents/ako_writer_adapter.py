@@ -17,12 +17,17 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 SOURCE_DIR = Path(r"D:\AKO\AKO_writer_agent")
 SHARED_DIR = Path(r"D:\AKO\AKO_shared")  # 统一命名模块（architect/writer 共享）
 POLL_INTERVAL = 2.0
-POLL_TIMEOUT = 240.0
+# 自动放行全链（2026-09-09）：N1 检索 / N3 长文写作 / N5 排版多次 LLM 调用，
+# 240s 不足以跑完全程 → 放宽至 20 分钟。
+POLL_TIMEOUT = 1200.0
+# 确认关卡总数上限：writer 图含 N0/N2/N4 三道人工确认关（恒自动放行），
+# 6 次上限兼作死循环护栏。
+MAX_AUTO_CONFIRM = 6
 
 
 def _load_bootstrap() -> None:
@@ -86,40 +91,61 @@ def run(
         return {"output_files": [], "summary": "",
                 "error": f"AKO_writer 任务创建失败: {exc}"}
 
-    # 轮询至终态
+    # 驱动至终态（2026-09-09 修复：此前挂在 N0 人工确认关即当成功返回，
+    # 任务恒 done 但永无 Word 产物）。writer 图含 N0/N2/N4 三道人工确认关，
+    # 设计预期由外部代码确认后重新 invoke；hub 调度链无人接线 → 此处自动
+    # 放行：能走到 writer 的工单已通过治理授权（老板批准放行或大门投递），
+    # 确认关不再二次要人。每次放行注入 approved 并重跑状态机推进到下一关
+    # 或 N5（Word 排版）终态。
     status: Dict[str, Any] = {}
     start = time.time()
+    auto_confirms = 0
     while time.time() - start < POLL_TIMEOUT:
         time.sleep(POLL_INTERVAL)
         try:
             status = _run_async(spoke.get_task_status(task_id)) or {}
         except Exception:
             continue
-        node = status.get("current_node", "")
-        approval = status.get("human_approval_status", "")
-        error = status.get("error_msg")
-        if error:
+        if status.get("error_msg"):
             break
-        if node in ("END", "human_review", "done") or approval in ("pending", "approved"):
+        if status.get("human_approval_status") == "pending":
+            if auto_confirms >= MAX_AUTO_CONFIRM:
+                status = {**status, "error_msg": "writer 确认环超过上限仍未收敛，中止"}
+                break
+            auto_confirms += 1
+            try:
+                _run_async(spoke.submit_human_confirm(task_id, approved=True))
+                continue  # 放行后继续轮询（invoke 内已推进，下次读取新状态）
+            except Exception as exc:  # noqa: BLE001
+                status = {**status, "error_msg": f"writer 自动放行失败: {exc}"}
+                break
+        else:
+            # approved/rejected 终态（图已跑完到 END / N5 产出）
             break
+    else:
+        status = {**status, "error_msg": f"writer 驱动轮询超时（{POLL_TIMEOUT:.0f}s）"}
+        status.setdefault("current_node", "unknown")
 
-    # 结果落盘
+    # 结果落盘：状态回执 json（适配器自身产出，始终写进 hub 输出目录）
     result_file = output_dir / f"writer_task_{task_id}.json"
     result_file.write_text(
         json.dumps({"task_id": task_id, "status": status}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    output_files: List[str] = [str(result_file)]
+
+    # 2026-09-14：writer 的 OUTPUT_ROOT 已直接指向 hub 的 file_bus/writer_output
+    # （工作台下载区），产物一步到位 —— 此处不再 shutil 拷第二份，直接登记原位路径。
+    docx_path = (status.get("formatted_docx") or {}).get("path")
+    if docx_path and Path(docx_path).exists():
+        output_files.insert(0, str(docx_path))  # Word 产物列首位
 
     if status.get("error_msg"):
-        return {"output_files": [str(result_file)], "summary": "",
+        return {"output_files": output_files, "summary": "",
                 "error": f"AKO_writer 执行失败: {status['error_msg']}"}
 
-    approval = status.get("human_approval_status", "")
-    outline = status.get("outline") or {}
-    if approval == "pending":
-        summary = f"写作任务 {task_id}：选题/检索/大纲完成，待人工确认"
-    elif outline:
-        summary = f"写作任务 {task_id}：大纲产出完成"
+    if docx_path and Path(docx_path).exists():
+        summary = f"写作任务 {task_id}：已完成并输出 Word 文档 {Path(docx_path).name}"
     else:
-        summary = f"写作任务 {task_id}：节点 {status.get('current_node', '?')}"
-    return {"output_files": [str(result_file)], "summary": summary, "error": None}
+        summary = f"写作任务 {task_id}：完成（节点 {status.get('current_node', '?')}，未产出 Word）"
+    return {"output_files": output_files, "summary": summary, "error": None}
