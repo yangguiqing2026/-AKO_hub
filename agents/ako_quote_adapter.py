@@ -2,13 +2,45 @@
 AKO Hub — AKO_quote 适配器
 将 D:/AKO/AKO_quote_agent (装配式建筑报价引擎) 包装为 Hub Spoke。
 """
+import re
 import sys
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 SOURCE_DIR = Path(r"D:\AKO\AKO_quote_agent\ako_quote_agent")
+
+# 面积单位变体（㎡/平方米/平米/平）
+_AREA_UNITS = r"(?:㎡|平方米|平米|平)"
+# 裸数值的收尾约束：须以空白/标点/结尾收尾，避免把「3层」「5栋」这类数量当面积
+_BARE_AREA_TAIL = r"(?=\s|$|[，,。.；;、：:）)】\]」」])"
+
+
+def _extract_area(text: str) -> Optional[float]:
+    """从自然语言中抽取面积（㎡）。抽不到返回 None，由调用方决定默认值。
+
+    优先级（2026-09-14 重写，修复两个残留缺陷）：
+      1. 「面积」后紧邻的「数值+面积单位」 —— 最强语义信号；
+      2. 「面积」后紧邻的裸数值（须以空白/标点/结尾收尾）—— 覆盖「面积300」口语写法，
+         收尾约束用于排除「面积按3层楼」这类层数误取；
+      3. 全文第一个「数值+面积单位」—— 无「面积」关键字，或关键字后无数值时的兜底
+         （原实现只要命中「面积」就只在窗口内找，找不到即放弃，注释承诺的兜底从未生效）。
+
+    缺陷(a)(b) 的原始输入形态见 tests/test_quote_adapter_area.py。
+    """
+    if not text:
+        return None
+    m = re.search(rf"面积[^\d]{{0,6}}(\d+(?:\.\d+)?)\s*{_AREA_UNITS}", text)
+    if m:
+        return float(m.group(1))
+    m = re.search(rf"面积[^\d]{{0,6}}(\d+(?:\.\d+)?){_BARE_AREA_TAIL}", text)
+    if m:
+        return float(m.group(1))
+    m = re.search(rf"(\d+(?:\.\d+)?)\s*{_AREA_UNITS}", text)
+    if m:
+        return float(m.group(1))
+    return None
 
 
 def run(
@@ -42,7 +74,8 @@ def run(
     wall_type: str = str(wall_type_raw) if wall_type_raw not in (None, "", _none) else "外墙"
     thickness: int = int(thickness_raw) if thickness_raw not in (None, "", _none) else 150
     # 空串（专家模式未填/旧载荷）回退 project_tag，避免脏文件名与空抬头
-    project_name = str(kwargs.get("project_name") or "").strip() or project_tag
+    _supplied_pn = str(kwargs.get("project_name") or "").strip()
+    project_name = _supplied_pn or project_tag
     # 2026-09-09：清理复述式抬头（intake 澄清答复现已在源头剥离；此处兜底旧载荷
     # 与其他调用方——"测试项目名称是测试项目A" → "测试项目A"）
     import re as _re_pn
@@ -59,16 +92,11 @@ def run(
 
     if raw_text:
         import re as _re
-        # 面积：优先取「面积」语义后最近的一个数值+面积单位；否则全文第一个。
-        # 支持小数（如 123.5㎡）与 平方米/平米/㎡ 变体。
+        # 面积：见 _extract_area 的三级优先级（2026-09-14 重写）
         if area_raw in (None, "", _none):
-            segment = raw_text
-            idx = _re.search(r"面积", raw_text)
-            if idx:
-                segment = raw_text[idx.end():][:40]
-            area_match = _re.search(r"(\d+(?:\.\d+)?)\s*(?:㎡|平方米|平米|平)", segment)
-            if area_match:
-                area = float(area_match.group(1))
+            found = _extract_area(raw_text)
+            if found is not None:
+                area = found
         if wall_type_raw in (None, "", _none):
             if "内墙" in raw_text:
                 wall_type = "内墙"
@@ -83,6 +111,10 @@ def run(
         name_match = _re.search(r"项目[：:]\s*(\S+)", raw_text)
         if name_match:
             project_name = name_match.group(1)
+
+    # 2026-09-14（B）：抬头是否落到域默认值。落则产出摘要显式标注，不静默——
+    # 实测单号 F-AKO_akodoc_20260909_100807 的抬头印成 taoli，只能靠人翻 PDF 才发现。
+    header_is_default: bool = (not _supplied_pn) and project_name == project_tag
 
     form_data = {
         "project_name": project_name,
@@ -119,6 +151,8 @@ def run(
             f"报价完成: {project_name}, {area}㎡ {wall_type} {thickness}mm, "
             f"总计 {result['total']:.2f} 元"
         )
+        if header_is_default:
+            summary += f"（项目名未提供，报价单抬头用域默认值：{project_tag}）"
         output_files = [str(quote_file)]
 
         # PDF 报价单（2026-09-04：quote_agent 标准交付物为 PDF；失败仅降级不阻断）

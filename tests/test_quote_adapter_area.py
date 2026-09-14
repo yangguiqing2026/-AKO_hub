@@ -91,3 +91,61 @@ def test_project_name_strip_repeat_prefix(tmp_path, monkeypatch) -> None:
                project_name="测试项目名称是测试项目A",
                action="出报价", raw_input="外墙500平方米", project_tag="taoli")
     assert out["_form"]["project_name"] == "测试项目A"
+
+
+# ── 2026-09-14：面积抽取两个残留缺陷 ──────────────────────────────
+# 症状单号 F-AKO_akodoc_20260909_100807（area 落默认 100㎡）。该单本身是
+# raw_input 透传修复（2026-09-09 11:47）之前的产物；下列缺陷是同一段抽取
+# 逻辑中仍然存在的盲区，换成这些输入形态依旧会落默认值。
+
+
+def test_real_order_input_345(tmp_path, monkeypatch) -> None:
+    """真实工单原话回归：面积 345 平米（带单位）必须抽到 345，不得落 100。"""
+    mod = _load()
+    out = _run(mod, tmp_path, monkeypatch,
+               action="生成",
+               raw_input="生成一个345平米的3层住宅的陶粒墙板报价书",
+               project_tag="taoli")
+    assert out["_form"]["area"] == 345.0
+
+
+def test_bare_number_after_面积_without_unit(tmp_path, monkeypatch) -> None:
+    """缺陷(a)：「面积300」—— 数值后无单位也必须取到（原正则强制要求单位）。"""
+    mod = _load()
+    out = _run(mod, tmp_path, monkeypatch, action="出报价", raw_input="面积300", project_tag="taoli")
+    assert out["_form"]["area"] == 300.0
+
+
+def test_bare_number_after_面积_with_space_and_prefix(tmp_path, monkeypatch) -> None:
+    """缺陷(a)：口语写法「太原小区项目，面积 350」→ 350。"""
+    mod = _load()
+    out = _run(mod, tmp_path, monkeypatch,
+               action="出报价", raw_input="太原小区项目，面积 350", project_tag="taoli")
+    assert out["_form"]["area"] == 350.0
+
+
+def test_area_keyword_at_tail_falls_back_to_whole_text(tmp_path, monkeypatch) -> None:
+    """缺陷(b)：「面积」出现在末尾、其后无任何数值时，须回退到全文第一个数值+单位。
+
+    注释承诺“否则全文第一个”，但原实现只要命中「面积」就只在窗口内找，找不到即放弃。
+    """
+    mod = _load()
+    out = _run(mod, tmp_path, monkeypatch,
+               action="出报价", raw_input="150mm厚，300㎡面积", project_tag="taoli")
+    assert out["_form"]["area"] == 300.0
+
+
+def test_floor_count_not_mistaken_for_area(tmp_path, monkeypatch) -> None:
+    """守卫：「面积按3层楼计算」里的 3 是层数不是面积，不得被当面积取走。"""
+    mod = _load()
+    out = _run(mod, tmp_path, monkeypatch,
+               action="出报价", raw_input="面积按3层楼计算，明细另附", project_tag="taoli")
+    assert out["_form"]["area"] == 100.0
+
+
+def test_area_window_prefers_first_number_over_later_unit(tmp_path, monkeypatch) -> None:
+    """「面积300，另附50㎡图纸」→ 取紧邻「面积」的 300，不取后文 50㎡。"""
+    mod = _load()
+    out = _run(mod, tmp_path, monkeypatch,
+               action="出报价", raw_input="面积300，另附50㎡图纸", project_tag="taoli")
+    assert out["_form"]["area"] == 300.0
