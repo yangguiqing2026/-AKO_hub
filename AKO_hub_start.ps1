@@ -1,6 +1,14 @@
 # AKO_hub_start.ps1
 # Start AKO_hub Dashboard (port 8081) + Hub (port 8080 / heartbeat 5000).
 # Logs are redirected to $hub\logs.
+#
+# ⚠ 调用方式注意（2026-09-14 查清）：
+#   本脚本自身约 11 秒跑完并以 0 退出，但用 Start-Process 拉起的 hub / dashboard
+#   是**长驻**进程，它们**继承了调用方的 stdout 管道句柄**。因此若以管道方式调用，
+#   例如 `powershell -File AKO_hub_start.ps1 | tail`，管道永远等不到 EOF ——
+#   即使本脚本早已退出，调用方仍会一直挂着，直到那两个服务进程被杀掉为止。
+#   正常用法（双击、计划任务、直接执行）stdout 不是管道，不受影响。
+#   需要程序化调用时请用文件重定向（`> log.txt`），不要接管道。
 
 $hub = if ($env:AKO_HUB_DIR) { $env:AKO_HUB_DIR } else { "D:\AKO\AKO_hub" }
 $py  = if ($env:AKO_PYTHON) { $env:AKO_PYTHON } else { "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\python.exe" }
