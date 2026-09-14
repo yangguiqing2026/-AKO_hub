@@ -132,13 +132,16 @@ def run(
         json.dumps({"task_id": task_id, "status": status}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    output_files: List[str] = [str(result_file)]
-
-    # 2026-09-14：writer 的 OUTPUT_ROOT 已直接指向 hub 的 file_bus/writer_output
-    # （工作台下载区），产物一步到位 —— 此处不再 shutil 拷第二份，直接登记原位路径。
+    # 上报口径（2026-09-14）：
+    # - 只上报 Word 产物 —— writer 的 OUTPUT_ROOT 已直接指向 hub 的 file_bus
+    #   （工作台下载区），无需再拷；中间件（md 草稿 / 插图 / outline）一并上报会
+    #   让结果卡片列出一串下载链接，故不上报（文件仍在盘上，只是不进注册表）。
+    # - 未产出 Word 时回落到任务回执，结果卡片不至为空。
     docx_path = (status.get("formatted_docx") or {}).get("path")
     if docx_path and Path(docx_path).exists():
-        output_files.insert(0, str(docx_path))  # Word 产物列首位
+        output_files: List[str] = [str(docx_path)]
+    else:
+        output_files = [str(result_file)]
 
     if status.get("error_msg"):
         return {"output_files": output_files, "summary": "",

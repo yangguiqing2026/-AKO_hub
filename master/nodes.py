@@ -341,8 +341,8 @@ def _workflow_caller_core(state: MasterState) -> Dict[str, Any]:
         post_files = {str(p) for p in abs_output_dir.rglob("*") if p.is_file()}
 
     new_files = list(post_files - pre_files)
-    # 合并 Spoke 返回的文件与扫描发现的文件
-    all_files = list(set(spoke_output.get("output_files", []) + new_files))
+    # 合并 Spoke 返回的文件与扫描发现的文件（见 _resolve_output_files）
+    all_files = _resolve_output_files(spoke, spoke_output.get("output_files", []), new_files)
 
     result: Dict[str, Any] = {
         "spoke_output": spoke_output,
@@ -442,6 +442,24 @@ def _call_spoke_subprocess(
         return {"output_files": [], "summary": "", "error": "subprocess 调用超时（600 秒）"}
     except Exception as e:
         return {"output_files": [], "summary": "", "error": f"subprocess 调用失败: {type(e).__name__}: {e}"}
+
+
+def _resolve_output_files(
+    spoke: Dict[str, Any], reported: List[str], new_files: List[str]
+) -> List[str]:
+    """裁决该注册哪些产出文件。
+
+    默认（历史行为）：spoke 自报清单 ∪ 输出目录快照差集 —— 差集是兜底，防 spoke 漏报。
+
+    声明 `file_scan: "spoke_only"` 的 spoke（如 writer）：**以自报清单为准**。
+    其产物目录里同时存放中间件（md 草稿 / 插图 / outline.md），快照差集会把它们
+    一并注册，工作台结果卡片因此列出一串下载链接（2026-09-14）。
+
+    spoke 一个都没报时仍走兜底 —— 否则漏报的 spoke 会在工作台彻底看不到产物。
+    """
+    if str(spoke.get("file_scan", "")).strip().lower() == "spoke_only" and reported:
+        return list(reported)
+    return list(set(reported + new_files))
 
 
 def _normalize_agent_result(result: Any) -> Dict[str, Any]:
