@@ -150,6 +150,7 @@ def test_governor_login_issues_token_and_reads_overview(client: TestClient, monk
     body = r.json()
     assert body.get("role") == "governor"
     assert "agents" in body and "system_status" in body
+    assert "flow" in body  # 真实工单流转字段（审计面板数据源）
 
 
 def test_governor_token_reads_topology(client: TestClient, monkeypatch):
@@ -158,6 +159,7 @@ def test_governor_token_reads_topology(client: TestClient, monkeypatch):
     assert r.status_code == 200
     body = r.json()
     assert "rings" in body and "hub" in body and "edges" in body
+    assert "flow" in body  # 真实流转动效边（替代静态边动画）
 
 
 def test_login_format_validation(client: TestClient):
@@ -391,7 +393,7 @@ def test_topology_matches_suffixless_heartbeat_keys(client: TestClient, monkeypa
 def test_worker02_node_status_maps_normal_to_online(client: TestClient, monkeypatch):
     token = _login_as_governor(client, monkeypatch)
     monkeypatch.setattr(app_mod, "_merged_state", lambda: {"agents": {}})
-    monkeypatch.setattr(app_mod, "_health_alerts", lambda limit=50: [])
+    monkeypatch.setattr(app_mod, "_health_alerts", lambda limit=50, only_open=False: [])
     monkeypatch.setattr(app_mod, "_list_events", lambda limit=30: {})
     r = client.get("/api/governance/overview", headers=_gov_headers(token))
     body = r.json()

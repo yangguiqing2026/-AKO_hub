@@ -124,3 +124,21 @@ def test_alerts_go_to_heartbeat_db_not_queue_db() -> None:
     /api/health/alerts（读 ako_hub.db）永远看不到。
     """
     assert event_consumer._alerts_db_path().endswith("ako_hub.db")
+
+
+def test_console_security_panel_lists_only_open_alerts(monkeypatch, tmp_path) -> None:
+    """安全事件中心只显示未确认告警：确认过的不能永远挂在面板上。"""
+    import dashboard.app as app_mod
+
+    db_path = str(tmp_path / "ako_hub.db")
+    monkeypatch.setattr(app_mod, "HEARTBEAT_DB", Path(db_path))
+    monkeypatch.setattr(app_mod, "_init_heartbeat_db", lambda: None)
+    bus = EventBus(root=tmp_path)
+    bus.publish("AKO_monitor_agent", "fuse_alert", {"alert": FUSE}, target_agent="*")
+    event_consumer.drain_events_once(bus=bus, db_path=db_path)
+
+    assert len(app_mod._health_alerts(only_open=True)) == 1
+    with HubDB(db_path) as db:
+        db.execute("UPDATE alerts SET acknowledged=1")
+    assert app_mod._health_alerts(only_open=True) == []      # 确认后从面板消失
+    assert len(app_mod._health_alerts()) == 1                # 审计接口仍返回全量

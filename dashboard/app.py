@@ -417,16 +417,23 @@ def _health_agents() -> Dict[str, Any]:
     except Exception as e:
         return {"status": "error", "message": f"{type(e).__name__}: {e}", "agents": []}
 
-def _health_alerts(limit: int = 100) -> List[Dict[str, Any]]:
-    """读取告警表。"""
+def _health_alerts(limit: int = 100, only_open: bool = False) -> List[Dict[str, Any]]:
+    """读取告警表。
+
+    only_open=True 只返回未确认告警（安全事件中心用：确认后即从面板消失，
+    否则已处理的事件会永远挂着 —— 2026-09-16 消费器上线后告警开始真实入库，
+    才暴露这一点）。/api/health/alerts 仍返回全量，保持既有审计语义。
+    """
     _init_heartbeat_db()
+    sql = "SELECT * FROM alerts"
+    if only_open:
+        sql += " WHERE acknowledged IS NULL OR acknowledged=0"
+    sql += " ORDER BY created_at DESC LIMIT ?"
     try:
         conn = sqlite3.connect(str(HEARTBEAT_DB))
         conn.row_factory = sqlite3.Row
         try:
-            rows = conn.execute(
-                "SELECT * FROM alerts ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = conn.execute(sql, (limit,)).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
@@ -1251,7 +1258,8 @@ async def governance_overview(_gov: Dict[str, Any] = Depends(_require_governor))
             "last_heartbeat": a.get("last_heartbeat"),
         })
 
-    alerts = _health_alerts(50) or []
+    # 安全事件中心只列未确认告警（确认即消失）
+    alerts = _health_alerts(50, only_open=True) or []
     events = _list_events(30)
 
     total = len(agent_list)
