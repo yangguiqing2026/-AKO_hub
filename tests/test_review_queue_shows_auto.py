@@ -91,3 +91,15 @@ def test_summary_falls_back_to_action_when_no_text(monkeypatch, tmp_path) -> Non
     _seed(monkeypatch, tmp_path)
     row = _rows()[REVIEW_ID]
     assert row["summary"] == "陶粒墙板单层厂房方案设计"
+
+
+def test_queue_orders_newest_first_across_kinds(monkeypatch, tmp_path) -> None:
+    """面板只渲染前 4 张卡（governor.html q.slice(0,4)）—— 新任务必须排在旧待审前面，
+    否则今天的生图卡会被一堆历史 manual_review 挤到面板之外（实测不可见）。"""
+    _seed(monkeypatch, tmp_path)
+    db_path = str(tmp_path / "age_hub_q.db")
+    with HubDB(db_path) as db:
+        db.execute("UPDATE task_queue SET started_at='2026-09-09T08:00:00' WHERE task_id=?", (REVIEW_ID,))
+        db.execute("UPDATE task_queue SET started_at='2026-09-16T16:20:00' WHERE task_id=?", (AUTO_ID,))
+    rows = app_mod._review_rows()
+    assert rows[0]["task_id"] == AUTO_ID, [r["task_id"] for r in rows]

@@ -160,6 +160,22 @@ body {
   gap: 8px;
   margin-top: 10px;
 }
+/* 2026-09-16：授权队列面板内可折叠 —— 前 4 条常驻，其余走下拉杠展开
+   （此前只能点顶栏「待授权」弹层，面板里看不到全部任务） */
+.auth-more { border-top: 1px solid color-mix(in srgb, var(--amber-gold) 22%, transparent); }
+.auth-more > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--amber-gold);
+  user-select: none;
+}
+.auth-more > summary::-webkit-details-marker { display: none; }
+.auth-more > summary::after { content: " ▾"; }
+.auth-more[open] > summary::after { content: " ▴"; }
+.auth-more[open] > summary { border-bottom: 1px solid color-mix(in srgb, var(--amber-gold) 22%, transparent); }
+.auth-more-body { max-height: 460px; overflow-y: auto; }
 .gov-btn {
   padding: 5px 12px;
   border-radius: 6px;
@@ -1166,9 +1182,13 @@ drawTopology();
         el.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--soft-green);">✅ 暂无待授权工单，系统通畅。</div>';
         return;
       }
-      var more = q.length > 4 ? '<div class="modal-note" style="padding:8px 16px 12px;">还有 ' + (q.length - 4)
-        + ' 条 → 点击顶栏「待授权」查看全部</div>' : "";
-      el.innerHTML = q.slice(0, 4).map(authCardHtml).join("") + more;
+      var head = q.slice(0, 4).map(authCardHtml).join("");
+      var rest = q.slice(4);
+      var more = rest.length
+        ? '<details class="auth-more"><summary>展开其余 ' + rest.length + ' 条任务</summary>'
+          + '<div class="auth-more-body">' + rest.map(authCardHtml).join("") + '</div></details>'
+        : "";
+      el.innerHTML = head + more;
     } catch (e) {
       el.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--dark-red);">队列加载失败: '
         + esc(e.message || e) + '</div>';

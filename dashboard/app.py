@@ -1080,6 +1080,10 @@ def _review_rows(limit: int = 40, auto_limit: int = 5) -> List[Dict[str, Any]]:
             "summary": ps["summary"],
             "confidence": ps["confidence"],
         })
+    # 2026-09-16：两类合并后按时间倒序 —— 看板面板只渲染前 4 张
+    # （governor.html 的 q.slice(0,4)），自动执行单若恒被追加在历史待审之后，
+    # 面板上永远看不到（实测：今天的生图卡排在第 8 位往后）。
+    out.sort(key=lambda r: str(r.get("started_at") or ""), reverse=True)
     return out
 
 
