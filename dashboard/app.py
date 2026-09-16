@@ -467,6 +467,69 @@ def _list_events(limit: int = 100) -> Dict[str, Any]:
                 pass
     return result
 
+
+def _dur_seconds(started: Any, finished: Any) -> Optional[float]:
+    """两个 ISO 时间字符串的秒差（无法解析返回 None）。"""
+    try:
+        a = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(finished).replace("Z", "+00:00"))
+        return round((b - a).total_seconds(), 1)
+    except Exception:
+        return None
+
+
+def _recent_workflow_flow(limit: int = 12,
+                          statuses: tuple = ("done", "failed", "running")) -> List[Dict[str, Any]]:
+    """近期真实工单流转（hub_meta.db task_queue 记录，2026-09-03 接入）。
+
+    此前拓扑"工单流转"动效沿静态声明边播放（agent_edges.yaml），且调用链审计面板
+    展示硬编码示例——均非实际流通。此处以真实工单执行记录为准：
+    每条 = trigger_agent → workflow_id 一次实际调用（人工录入 trigger=operator、
+    intake 投递 trigger=AKO_hub_intake_agent）。
+
+    statuses 可扩展查询态：治理指挥室拓扑动画另需 manual_review（大门→总控
+    评审在途）作琥珀入流；审计面板（overview）保持默认终态/运行中不包含评审态。
+    """
+    import sqlite3
+    db = AKO_HUB_ROOT / "hub_meta.db"
+    if not db.exists():
+        return []
+    placeholders = ",".join("?" * len(statuses))
+    try:
+        conn = sqlite3.connect(str(db))
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                f"""SELECT workflow_id, trigger_agent, status, started_at, finished_at
+                    FROM task_queue
+                    WHERE status IN ({placeholders})
+                    ORDER BY COALESCE(started_at, '') DESC LIMIT ?""",
+                (*statuses, limit),
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return []
+    names = _load_agent_names()
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        to_id = str(r["workflow_id"] or "").strip()
+        if not to_id:
+            continue
+        from_id = str(r["trigger_agent"] or "operator").strip()
+        out.append({
+            "t": (str(r["started_at"] or ""))[:16],
+            "from": from_id,
+            "to": to_id,
+            "from_name": names.get(from_id) or from_id,
+            "to_name": names.get(to_id) or names.get(to_id.replace("_agent", "")) or to_id,
+            "ok": str(r["status"]) == "done",
+            "status": str(r["status"]),
+            "duration_s": _dur_seconds(r["started_at"], r["finished_at"]),
+        })
+    return out
+
+
 # ── WebSocket 连接池 ─────────────────────────────────────────────
 
 class ConnectionManager:
@@ -851,16 +914,298 @@ async def governance_topology(_gov: Dict[str, Any] = Depends(_require_governor))
                           "online": by_id[f]["online"] and by_id[t]["online"]})
             seen.add((f, t))
 
+    # 真实流转边（2026-09-09）：task_queue 真实记录为骨架，按"经总控调度"语义补
+    # hub 中转腿。task_queue 生命周期 = 大门投递 → hub 队列（manual_review=老板
+    # 评审在途；hub 进程内派发不落独立行）→ 执行 agent 完成，故拓扑动画将每条
+    # 记录渲染为两段：投递腿 trigger→hub（评审在途呈琥珀入流）+ 派发腿 hub→执行。
+    # 审计面板（overview）仍用原始单腿记录，语义不变。
+    flow: List[Dict[str, Any]] = []
+    seen_flow: set = set()
+    chain_seq = 0  # 仅按实际产出链递增，保证相位均匀错开
+    for f in _recent_workflow_flow(
+            10, statuses=("done", "failed", "running", "manual_review")):
+        src, dst = f["from"], f["to"]
+        if src == "operator":
+            src = "AKO_hub_agent"
+        if src != "AKO_hub_agent" and src not in by_id:
+            continue
+        if dst != "AKO_hub_agent" and dst not in by_id:
+            continue
+        if src == dst == "AKO_hub_agent":
+            continue
+        if f["status"] == "manual_review":
+            # 评审在途：trigger → 总控 单腿（琥珀入流）。键空间独立：
+            # 不得与 done 链的投递腿 (trigger→hub) 共用去重键，否则评审
+            # 记录恒被已执行记录吞掉。
+            key = ("review", src, "AKO_hub_agent")
+            if key in seen_flow:
+                continue
+            seen_flow.add(key)
+            flow.append({"from": src, "to": "AKO_hub_agent", "ok": False,
+                         "status": "manual_review", "t": f["t"],
+                         "k": chain_seq * 0.17})
+            chain_seq += 1
+            continue
+        # 终态/运行中链：投递腿 trigger→总控（先入）+ 派发腿 总控→执行
+        # （相位错半周期，先见入流后见出流，视觉上任务经总控中转）；
+        # 人工录入（trigger=operator）→ 经总控派发：总控 → 执行 单腿。
+        legs = []
+        k = chain_seq * 0.17
+        if dst != "AKO_hub_agent":
+            if src != "AKO_hub_agent":
+                legs.append((src, "AKO_hub_agent", k))
+            legs.append(("AKO_hub_agent", dst, k + 0.5))
+        else:
+            legs.append((src, "AKO_hub_agent", k))
+        added = False
+        for lf, lt, lk in legs:
+            key = (lf, lt)
+            if key in seen_flow:
+                continue
+            seen_flow.add(key)
+            flow.append({"from": lf, "to": lt, "ok": f["ok"],
+                         "status": f["status"], "t": f["t"], "k": lk})
+            added = True
+        if added:
+            chain_seq += 1
+
     return {
         "hub": hub,
         "rings": rings,
         "layer_colors": _LAYER_COLORS,
         "heatmap_colors": _HEATMAP_COLORS,
         "edges": edges,
+        "flow": flow,
         "counts": {k: len(v) for k, v in rings.items()},
         "total": len(by_id),
         "online_total": sum(1 for a in by_id.values() if a["online"]),
     }
+
+# ── 治理授权队列（review-queue） ─────────────────────────────────
+
+def _payload_summary(raw: str) -> Dict[str, Any]:
+    """从工单载荷提取展示字段（intake wo JSON：action/intent/confidence；
+    文本/旧载荷取前 160 字摘要）。"""
+    summary, confidence, action = "", None, ""
+    raw = str(raw or "")
+    if not raw:
+        return {"summary": summary, "confidence": confidence, "action": action}
+    try:
+        p = json.loads(raw)
+        if isinstance(p, dict):
+            action = str(p.get("action") or p.get("intent") or "").strip()
+            # 2026-09-16：摘要优先取"任务是什么" —— 大门透传的需求原文
+            # （intent/raw_input/topic），而不是 NLU 的通用动词。实测效果图工单
+            # 卡片标题只显示"生成"，老板在总控台看不出任务内容。
+            summary = ""
+            for key in ("intent", "raw_input", "topic", "action"):
+                value = str(p.get(key) or "").strip()
+                if value:
+                    summary = value
+                    break
+            if not summary and isinstance(p.get("prohibitions"), list):
+                summary = "；".join(p["prohibitions"])
+            if not summary and isinstance(p.get("deliverable"), str):
+                summary = p["deliverable"]
+            try:
+                confidence = float(p.get("confidence_score") or 0)
+            except (TypeError, ValueError):
+                confidence = None
+    except (ValueError, TypeError):
+        pass
+    if not summary:
+        summary = raw.replace("\n", " ")[:160]
+    return {"summary": summary[:240], "confidence": confidence, "action": action[:160]}
+
+
+def _review_rows(limit: int = 40, auto_limit: int = 5) -> List[Dict[str, Any]]:
+    """待治理者处理队列：manual_review（大门评审在途）+ deploy_wait（部署等待）。
+
+    另附自动执行记录（queue='auto'，limit 条）：AKO_studio 口径 2026-09-16 ——
+    自动出图是"图片生成自动"，但**任务动作要在总控台看得见**。这类单不需要审批，
+    故不放批准/拒绝按钮，只作只读卡呈现（status 报 auto_executed）。
+    """
+    try:
+        from core.hub_db import HubDB
+    except Exception:
+        return []
+    paths = _resolve_paths()
+    db = HubDB(paths["db_path"])
+    try:
+        db.connect()
+        rows = db.fetchall(
+            """SELECT task_id, workflow_id, trigger_agent, submitter, status,
+                      started_at, raw_payload
+               FROM task_queue
+               WHERE status IN ('manual_review', 'deploy_wait')
+               ORDER BY COALESCE(started_at, '') DESC LIMIT ?""",
+            (limit,),
+        )
+        auto_rows = db.fetchall(
+            """SELECT task_id, workflow_id, trigger_agent, submitter, status,
+                      started_at, raw_payload
+               FROM task_queue
+               WHERE queue = 'auto' AND status = 'done'
+               ORDER BY COALESCE(finished_at, started_at, '') DESC LIMIT ?""",
+            (auto_limit,),
+        )
+    except Exception:
+        return []
+    finally:
+        db.close()
+    out = []
+    for r in rows:
+        ps = _payload_summary(str(r.get("raw_payload") or ""))
+        out.append({
+            "task_id": r.get("task_id"),
+            "workflow_id": r.get("workflow_id"),
+            "trigger_agent": r.get("trigger_agent"),
+            "submitter": r.get("submitter"),
+            "status": r.get("status"),
+            "started_at": r.get("started_at"),
+            "action": ps["action"],
+            "summary": ps["summary"],
+            "confidence": ps["confidence"],
+        })
+    for r in auto_rows:
+        ps = _payload_summary(str(r.get("raw_payload") or ""))
+        out.append({
+            "task_id": r.get("task_id"),
+            "workflow_id": r.get("workflow_id"),
+            "trigger_agent": r.get("trigger_agent"),
+            "submitter": r.get("submitter"),
+            "status": "auto_executed",
+            "started_at": r.get("started_at"),
+            "action": ps["action"],
+            "summary": ps["summary"],
+            "confidence": ps["confidence"],
+        })
+    return out
+
+
+def _review_pending_count() -> int:
+    """待授权总数（人工评审在途 + 部署等待）。"""
+    try:
+        from core.hub_db import HubDB
+    except Exception:
+        return 0
+    paths = _resolve_paths()
+    db = HubDB(paths["db_path"])
+    try:
+        db.connect()
+        row = db.fetchone(
+            """SELECT COUNT(*) AS cnt FROM task_queue
+               WHERE status IN ('manual_review', 'deploy_wait')""")
+        return int(row.get("cnt") or 0) if row else 0
+    except Exception:
+        return 0
+    finally:
+        db.close()
+
+
+def _hub_beat_span_seconds() -> float:
+    """体系运行时长下界：AKO_hub 心跳库自心跳首报到末报的跨度（秒）。
+
+    心跳表仅追加，hub 重启不重置 → 跨度 = 心跳监控持续存活期，
+    "运行 N 天"以该真实下界为准（替代原硬编码 12d）。
+    """
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(HEARTBEAT_DB))
+        try:
+            row = conn.execute(
+                "SELECT MIN(timestamp) AS t0, MAX(timestamp) AS t1 "
+                "FROM heartbeats WHERE agent_id='AKO_hub'"
+            ).fetchone()
+        finally:
+            conn.close()
+    except Exception:
+        return 0.0
+    if not row or not row[0] or not row[1]:
+        return 0.0
+    try:
+        from datetime import datetime
+        t0 = datetime.fromisoformat(str(row[0]).replace("Z", "+00:00"))
+        t1 = datetime.fromisoformat(str(row[1]).replace("Z", "+00:00"))
+        return max((t1 - t0).total_seconds(), 0.0)
+    except Exception:
+        return 0.0
+
+
+@app.get("/api/governance/review-queue")
+async def governance_review_queue(_gov: Dict[str, Any] = Depends(_require_governor)):
+    """治理授权队列（治理会话保护）：待老板处理工单（评审在途/部署等待）。"""
+    rows = _review_rows()
+    return {
+        "queue": rows,
+        "count": len(rows),
+        "review": sum(1 for r in rows if r["status"] == "manual_review"),
+        "deploy_wait": sum(1 for r in rows if r["status"] == "deploy_wait"),
+    }
+
+
+def _review_transition(task_id: str, to_status: str, note: str) -> Dict[str, Any]:
+    """评审动作落地：manual_review → pending（放行执行）/ failed（拒绝）。
+
+    注意：HubDB.execute 不自动提交，写操作必须以 with HubDB() 包装
+    （__exit__ 正常路径 commit），否则 UPDATE 静默回滚。
+    """
+    task_id = str(task_id or "").strip()
+    if not task_id:
+        return {"status": "fail", "message": "缺少 task_id"}
+    from datetime import datetime
+    from core.hub_db import HubDB
+    paths = _resolve_paths()
+    try:
+        with HubDB(paths["db_path"]) as db:
+            if to_status == "pending":
+                cur = db.execute(
+                    "UPDATE task_queue SET status='pending', queue='main', "
+                    "error_log=NULL WHERE task_id=? AND status='manual_review'",
+                    (task_id,))
+                if cur.rowcount:
+                    # 2026-09-16：批准同时把 human_confirmed 写进载荷。worker 用同一份
+                    # raw_payload 重跑，spoke 靠该标记跨过构思确认待命点 —— 否则重跑会
+                    # 再次停在待命点，工单在审批队列里循环。
+                    row = db.fetchone(
+                        "SELECT raw_payload FROM task_queue WHERE task_id=?", (task_id,))
+                    try:
+                        payload = json.loads((row or {}).get("raw_payload") or "{}")
+                    except (TypeError, ValueError):
+                        payload = {}
+                    if isinstance(payload, dict):
+                        payload["human_confirmed"] = True
+                        db.execute(
+                            "UPDATE task_queue SET raw_payload=? WHERE task_id=?",
+                            (json.dumps(payload, ensure_ascii=False), task_id))
+            else:
+                cur = db.execute(
+                    "UPDATE task_queue SET status='failed', "
+                    "error_log=? WHERE task_id=? AND status='manual_review'",
+                    (f"{note} {datetime.utcnow().isoformat(timespec='seconds')}Z", task_id))
+            if cur.rowcount == 0:
+                return {"status": "fail",
+                        "message": "工单不在人工评审队列（可能已被处理）"}
+    except Exception as e:
+        return {"status": "fail", "message": f"{type(e).__name__}: {e}"}
+    return {"status": "ok", "task_id": task_id, "action": to_status}
+
+
+@app.post("/api/governance/review/approve")
+async def governance_review_approve(payload: Dict[str, Any],
+                                    _gov: Dict[str, Any] = Depends(_require_governor)):
+    """批准评审工单：manual_review → pending（回主执行队列，由 pending_worker
+    真实拾取执行；不可路由行将由 worker 转回人工队列并在 error_log 注明）。"""
+    return _review_transition(str(payload.get("task_id", "")).strip(), "pending", "")
+
+
+@app.post("/api/governance/review/reject")
+async def governance_review_reject(payload: Dict[str, Any],
+                                   _gov: Dict[str, Any] = Depends(_require_governor)):
+    """拒绝评审工单：manual_review → failed（error_log 记录治理者拒绝）。"""
+    return _review_transition(str(payload.get("task_id", "")).strip(), "failed",
+                              "治理者拒绝")
+
 
 @app.get("/api/governance/overview")
 async def governance_overview(_gov: Dict[str, Any] = Depends(_require_governor)):
@@ -916,6 +1261,10 @@ async def governance_overview(_gov: Dict[str, Any] = Depends(_require_governor))
     return {
         "role": "governor",
         "system_status": system_status,
+        # 顶栏指标真实计数（2026-09-09）：待授权 = 人工评审在途 + 部署等待；
+        # 运行时长 = AKO_hub 心跳持续跨度（真实下界，替代硬编码）。
+        "review_count": _review_pending_count(),
+        "hub_beat_span_s": _hub_beat_span_seconds(),
         "agents": {
             "total": total,
             "online": online,
@@ -925,6 +1274,8 @@ async def governance_overview(_gov: Dict[str, Any] = Depends(_require_governor))
         },
         "alerts": alerts,
         "events": events,
+        # 真实工单流转（审计面板数据源：近期实际执行记录，替代原硬编码示例）
+        "flow": _recent_workflow_flow(10),
         "hub_nodes": [
             {"name": "Leader", "status": "online"},
             {"name": "worker-01", "status": "online"},
@@ -1036,4 +1387,4 @@ async def _hub_self_heartbeat_loop() -> None:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=80)
+    uvicorn.run(app, host="0.0.0.0", port=8081)

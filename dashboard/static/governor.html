@@ -55,6 +55,18 @@ body {
 .metric-pill .label { color: var(--amber-gold); font-size: 11px; }
 .metric-pill.alert .value { color: var(--warm-orange); animation: pulse 1.5s infinite; }
 .metric-pill.danger .value { color: var(--dark-red); animation: pulse 1.2s infinite; }
+/* 2026-09-09：顶栏指标可点击 → 详情弹层 */
+.metric-pill.clickable { cursor: pointer; transition: transform .12s ease, border-color .12s ease; }
+.metric-pill.clickable:hover { transform: translateY(-1px); border-color: var(--molten-gold); }
+.metric-pill.clickable .label::after { content: " ▸"; opacity: .6; }
+/* 详情弹层（与页面深色主题一致） */
+.modal-mask { position: fixed; inset: 0; background: rgba(10, 8, 6, .72); z-index: 99; display: flex; align-items: center; justify-content: center; }
+.modal-box { width: min(760px, 94vw); max-height: 84vh; overflow: auto; background: var(--deep-brown-card); border: 1px solid color-mix(in srgb, var(--deep-brown-card) 85%, var(--molten-gold) 15%); border-radius: 10px; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-bottom: 1px solid color-mix(in srgb, var(--deep-brown-card) 88%, var(--molten-gold) 12%); font-weight: 700; color: var(--cream-gold); position: sticky; top: 0; background: var(--deep-brown-card); }
+.modal-close { cursor: pointer; opacity: .7; font-size: 16px; }
+.modal-close:hover { opacity: 1; color: var(--warm-orange); }
+.modal-body { padding: 8px 18px 18px; color: var(--amber-gold); font-size: 12px; line-height: 1.6; }
+.modal-note { opacity: .75; font-size: 11px; margin: 6px 0 0; }
 
 
 .nav-btn {
@@ -496,25 +508,25 @@ body {
 <div class="command-bar">
   <div class="logo" style="cursor:pointer;" onclick="location.href='/'"><img src="/static/ako_logo.png?v=2" class="logo-img" alt="AKO"> AKO_agent_总控台</div>
   <div class="metrics">
-    <div class="metric-pill">
+    <div class="metric-pill clickable" data-view="system" title="点击查看系统状态总览">
       <span class="label">系统</span>
       <span class="value" id="m-sys">🟢 正常</span>
     </div>
-    <div class="metric-pill alert">
+    <div class="metric-pill clickable" data-view="auth" title="点击查看待授权/评审工单">
       <span class="label">待授权</span>
-      <span class="value" id="m-auth">3</span>
+      <span class="value" id="m-auth">—</span>
     </div>
-    <div class="metric-pill">
+    <div class="metric-pill clickable" data-view="sec" title="点击查看安全事件">
       <span class="label">安全事件</span>
       <span class="value" id="m-sec">0</span>
     </div>
-    <div class="metric-pill alert">
+    <div class="metric-pill clickable" data-view="sign" title="点击查看签章事项">
       <span class="label">待签章</span>
-      <span class="value" id="m-sign">1</span>
+      <span class="value" id="m-sign">0</span>
     </div>
-    <div class="metric-pill">
+    <div class="metric-pill clickable" data-view="run" title="点击查看运行时长与服务状态">
       <span class="label">运行</span>
-      <span class="value" id="m-uptime">12d</span>
+      <span class="value" id="m-uptime">—</span>
     </div>
   </div>
   <div style="display:flex;gap:10px;align-items:center;">
@@ -529,64 +541,14 @@ body {
   <!-- 左区：治理决策 -->
   <div class="left-gov">
 
-    <!-- 授权审批队列 -->
+    <!-- 授权审批队列（2026-09-09：真实 review-queue 渲染，替代硬编码演示卡） -->
     <div class="gov-section">
       <div class="gov-section-title">
-        <span>⚖️ 授权审批队列 (3)</span>
-        <span style="font-size:11px;color:var(--amber-gold);">按紧急度排序</span>
+        <span id="auth-title">⚖️ 授权审批队列</span>
+        <span style="font-size:11px;color:var(--amber-gold);">真实待处理工单 · 点击顶栏"待授权"全量查看</span>
       </div>
-
-      <div class="auth-card urgent">
-        <div class="auth-card-header">
-          <span class="auth-card-class maintenance">🔧 维护层</span>
-          <span style="color:var(--warm-orange);font-size:10px;">🔥 紧急</span>
-        </div>
-        <div class="auth-card-title">AKO_netwatch_agent — 紧急巡检</div>
-        <div class="auth-card-meta">
-          请求: 系统级故障检测<br>
-          提交: 2026-08-24 06:35:00<br>
-          时限: 15min 内响应
-        </div>
-        <div class="auth-card-actions">
-          <button class="gov-btn gov-btn-approve">批准</button>
-          <button class="gov-btn gov-btn-reject">拒绝</button>
-          <button class="gov-btn gov-btn-detail">详情</button>
-        </div>
-      </div>
-
-      <div class="auth-card">
-        <div class="auth-card-header">
-          <span class="auth-card-class legal">⚖️ 法律层</span>
-        </div>
-        <div class="auth-card-title">AKO_law_agent — 起草修正案</div>
-        <div class="auth-card-meta">
-          请求: 起草《生产庭法》修正案 v1.2.0<br>
-          基础: AKO_Production_Law_v1.1.0<br>
-          提交: 2026-08-24 06:40:00<br>
-          时限: 48h 内完成
-        </div>
-        <div class="auth-card-actions">
-          <button class="gov-btn gov-btn-approve">批准</button>
-          <button class="gov-btn gov-btn-reject">拒绝</button>
-          <button class="gov-btn gov-btn-detail">详情</button>
-        </div>
-      </div>
-
-      <div class="auth-card">
-        <div class="auth-card-header">
-          <span class="auth-card-class legal">⚖️ 法律层</span>
-        </div>
-        <div class="auth-card-title">AKO_law_agent — 起草触发程序法</div>
-        <div class="auth-card-meta">
-          请求: 起草《触发程序法》v1.0.0<br>
-          提交: 2026-08-24 06:42:00<br>
-          时限: 48h 内完成
-        </div>
-        <div class="auth-card-actions">
-          <button class="gov-btn gov-btn-approve">批准</button>
-          <button class="gov-btn gov-btn-reject">拒绝</button>
-          <button class="gov-btn gov-btn-detail">详情</button>
-        </div>
+      <div id="auth-queue">
+        <div style="padding:12px 16px;font-size:12px;color:var(--amber-gold);">加载中…</div>
       </div>
     </div>
 
@@ -614,8 +576,8 @@ body {
         <span><span class="legend-dot" style="background:#A08C64"></span> 运维层</span>
         <span><span class="legend-dot" style="background:#7A9E7E"></span> 工具层</span>
         <span><span class="legend-dot online"></span> 心跳连接</span>
-        <span><span class="legend-dot" style="background:#D4A574"></span> 数据/调用连接</span>
-        <span><span class="legend-dot" style="background:#e5a020"></span> 工单流转方向（动画点）</span>
+        <span><span class="legend-dot" style="background:#D4A574"></span> 声明依赖（静态，无动效）</span>
+        <span><span class="legend-dot" style="background:#7ec699"></span> 工单流转（真实执行动点，红=失败）</span>
       </div>
       <canvas id="topology-canvas" style="height:560px;"></canvas>
     </div>
@@ -628,36 +590,7 @@ body {
         <span id="audit-toggle">▼ 展开</span>
       </div>
       <div id="audit-content">
-        <div class="audit-row">
-          <span class="time">06:53</span>
-          <span class="chain">quote → render</span>
-          <span class="duration">2.3s</span>
-          <span class="result" style="color:var(--soft-green);">✅</span>
-        </div>
-        <div class="audit-row">
-          <span class="time">06:52</span>
-          <span class="chain">audit → quality</span>
-          <span class="duration">5.1s</span>
-          <span class="result" style="color:var(--soft-green);">✅</span>
-        </div>
-        <div class="audit-row">
-          <span class="time">06:52</span>
-          <span class="chain">quote → audit</span>
-          <span class="duration">1.8s</span>
-          <span class="result" style="color:var(--soft-green);">✅</span>
-        </div>
-        <div class="audit-row">
-          <span class="time">06:51</span>
-          <span class="chain">layout → render</span>
-          <span class="duration">45.2s</span>
-          <span class="result" style="color:var(--warm-orange);">⚠️</span>
-        </div>
-        <div class="audit-row">
-          <span class="time">06:50</span>
-          <span class="chain">quote → law</span>
-          <span class="duration">0.1s</span>
-          <span class="result" style="color:var(--dark-red);">❌</span>
-        </div>
+        <div style="padding:8px;color:var(--amber-gold);font-size:12px;">加载真实流转记录…</div>
       </div>
     </div>
 
@@ -735,6 +668,17 @@ body {
   </div>
 </div>
 
+<!-- 指标详情弹层（2026-09-09：顶栏指标点击查看） -->
+<div class="modal-mask" id="detail-mask" style="display:none;">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span id="detail-title"></span>
+      <span class="modal-close" onclick="closeDetail()">✕</span>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
 <script>
 // 拓扑图绘制
 function drawTopology() {
@@ -804,28 +748,6 @@ function drawTopology() {
     });
   });
 
-  // 边的路径与方向点：工单流转动画（白皮书 §4.5.1 工单标签沿连线移动）
-  const flowSpeed = 0.25;  // 周期数/秒
-  function pointOnEdge(e, t) {
-    // 心跳边为直线 hub→agent；数据/调用边为二次曲线
-    if (e.type === 'heartbeat') {
-      const p = pos[e.from];
-      if (!p) return null;
-      return { x: cx + (p.x - cx) * t, y: cy + (p.y - cy) * t };
-    }
-    const a = pos[e.from], b = pos[e.to];
-    if (!a || !b) return null;
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const d = Math.max(Math.hypot(dx, dy), 1);
-    const nx = -dy / d, ny = dx / d;
-    const cpx = (a.x + b.x) / 2 + nx * 24, cpy = (a.y + b.y) / 2 + ny * 24;
-    const mt = 1 - t;
-    return {
-      x: mt * mt * a.x + 2 * mt * t * cpx + t * t * b.x,
-      y: mt * mt * a.y + 2 * mt * t * cpy + t * t * b.y
-    };
-  }
-
   // 1) 心跳边（在线实体 → Hub）
   topo.edges.forEach(function (e) {
     if (e.type !== 'heartbeat') return;
@@ -840,9 +762,12 @@ function drawTopology() {
   });
 
   // 2) 数据/调用边（虚线=有一端离线）
+  //    hub（总控圆心）不在环上 pos 表 → 端点含 hub 的边回退到圆心坐标，
+  //    否则 hub 入边（含离线虚线段）会被静默跳过，总控连线残缺。
   topo.edges.forEach(function (e) {
     if (e.type === 'heartbeat') return;
-    const a = pos[e.from], b = pos[e.to];
+    const a = e.from === 'AKO_hub_agent' ? { x: cx, y: cy } : pos[e.from];
+    const b = e.to === 'AKO_hub_agent' ? { x: cx, y: cy } : pos[e.to];
     if (!a || !b) return;
     const dx = b.x - a.x, dy = b.y - a.y;
     const d = Math.max(Math.hypot(dx, dy), 1);
@@ -858,17 +783,25 @@ function drawTopology() {
     ctx.setLineDash([]);
   });
 
-  // 3) 工单流转方向动画点（沿边移动，方向 from → to）
-  topo.edges.forEach(function (e, i) {
-    if (!e.online) return;
-    const phase = (now * flowSpeed + i * 0.37) % 1;
-    const pt = pointOnEdge(e, phase);
-    if (!pt) return;
+  // 3) 真实工单流转动点（2026-09-03：仅沿 task_queue 实际执行记录流动；
+  //    静态 data/invoke 边只作声明层，不再播放动画，避免"声明冒充流转"）
+  //    2026-09-09：后端按"经总控调度"补 hub 中转腿（投递 trigger→hub、
+  //    派发 hub→执行），相位用 fl.k（派发腿错半周期 → 任务先入总控再出总控）；
+  //    色随状态：done 绿 / failed 红 / running·manual_review（评审在途）琥珀。
+  (topo.flow || []).forEach(function (fl, i) {
+    const a = fl.from === 'AKO_hub_agent' ? { x: cx, y: cy } : pos[fl.from];
+    const b = fl.to === 'AKO_hub_agent' ? { x: cx, y: cy } : pos[fl.to];
+    if (!a || !b) return;
+    const phase = (now * 0.35 + (typeof fl.k === 'number' ? fl.k : i * 0.17)) % 1;
+    const x = a.x + (b.x - a.x) * phase, y = a.y + (b.y - a.y) * phase;
+    const st = fl.status || (fl.ok ? 'done' : 'failed');
     ctx.beginPath();
-    ctx.arc(pt.x, pt.y, 2.6, 0, Math.PI * 2);
-    ctx.fillStyle = e.type === 'heartbeat' ? '#7ec699' : '#e5a020';
+    ctx.arc(x, y, 3.4, 0, Math.PI * 2);
+    ctx.fillStyle = st === 'done' ? '#7ec699'
+                   : st === 'failed' ? '#e06c5f'
+                   : '#e0b45a';  // running / manual_review：琥珀在途
     ctx.fill();
-    ctx.strokeStyle = 'rgba(235,218,185,0.5)';
+    ctx.strokeStyle = 'rgba(235,218,185,0.55)';
     ctx.lineWidth = 0.8;
     ctx.stroke();
   });
@@ -1001,6 +934,35 @@ drawTopology();
     if (sec) sec.textContent = alerts.length;
     var pill = sec ? sec.closest(".metric-pill") : null;
     if (pill) { if (alerts.length) pill.classList.add("danger"); else pill.classList.remove("danger"); }
+    // 2026-09-09：待授权/待签章/运行 真实计数（替代硬编码假值）
+    var auth = $id("m-auth");
+    if (auth) {
+      var rc = o.review_count != null ? o.review_count : 0;
+      auth.textContent = rc;
+      var ap = auth.closest(".metric-pill");
+      if (ap) { if (rc > 0) ap.classList.add("alert"); else ap.classList.remove("alert"); }
+    }
+    var sign = $id("m-sign");
+    if (sign) sign.textContent = "0";  // 签章工作流未接入，恒 0（弹层内有说明）
+    var up = $id("m-uptime");
+    if (up) up.textContent = fmtSpan(o.hub_beat_span_s);
+  }
+
+  function fmtDT(ts) {
+    if (!ts) return "—";
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return String(ts).slice(0, 16).replace("T", " ");
+    function p(x) { return x < 10 ? "0" + x : x; }
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+      + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  function fmtSpan(s) {
+    s = Number(s) || 0;
+    if (s <= 0) return "—";
+    if (s < 3600) return Math.max(1, Math.round(s / 60)) + "分钟";
+    if (s < 86400) return (s / 3600).toFixed(1) + "小时";
+    return (s / 86400).toFixed(s / 86400 >= 10 ? 0 : 1) + "天";
   }
 
   function hbAge(ts) {
@@ -1091,19 +1053,19 @@ drawTopology();
   function renderAudit(o) {
     var box = $id("audit-content");
     if (!box) return;
-    var ev = o.events || {};
-    var rows = [];
-    (ev.completed || []).slice(0, 8).forEach(function (e) { rows.push({ t: ft(e), c: fc(e), ok: true }); });
-    (ev.failed || []).slice(0, 3).forEach(function (e) { rows.push({ t: ft(e), c: fc(e), ok: false }); });
-    if (!rows.length) { box.innerHTML = '<div style="padding:8px;color:var(--amber-gold);font-size:12px;">暂无调用链记录</div>'; return; }
+    // 2026-09-03：真实工单流转（o.flow 来自 task_queue 实际执行记录），替代硬编码示例
+    var rows = o.flow || [];
+    if (!rows.length) { box.innerHTML = '<div style="padding:8px;color:var(--amber-gold);font-size:12px;">暂无真实流转记录（近期无工单执行）</div>'; return; }
     var html = "";
-    rows.forEach(function (r) {
-      html += '<div class="audit-row"><span class="time">' + esc(r.t) + '</span><span class="chain">' + esc(r.c) + '</span><span class="duration"></span><span class="result" style="color:' + (r.ok ? "var(--soft-green)" : "var(--dark-red)") + ';">' + (r.ok ? "✅" : "❌") + "</span></div>";
+    rows.slice(0, 10).forEach(function (r) {
+      var dur = "";
+      if (r.duration_s != null) dur = r.duration_s < 60 ? r.duration_s + "s" : (r.duration_s / 60).toFixed(1) + "m";
+      var tag = r.status === "running" ? "⏳" : (r.ok ? "✅" : "❌");
+      var col = r.status === "running" ? "var(--amber-gold)" : (r.ok ? "var(--soft-green)" : "var(--dark-red)");
+      html += '<div class="audit-row"><span class="time">' + esc(r.t) + '</span><span class="chain">' + esc(r.from_name + " → " + r.to_name) + '</span><span class="duration">' + esc(dur) + '</span><span class="result" style="color:' + col + ';">' + tag + "</span></div>";
     });
     box.innerHTML = html;
   }
-  function ft(e) { var s = String(e.timestamp || e.time || e.created_at || ""); return s.length >= 16 ? s.slice(11, 16) : (s.length > 8 ? s.slice(0, 8) : s); }
-  function fc(e) { return (e.source_agent || e.agent_id || "") + " → " + (e.target_agent || ""); }
 
   function renderHubNodes(nodes) {
     var box = $id("hub-nodes");
@@ -1133,10 +1095,196 @@ drawTopology();
     window.LIVE_AGENTS = (o.agents && o.agents.list) || [];
   }
 
+  // ── 顶栏指标详情弹层（2026-09-09） ────────────────────────────
+  var _lastO = null;  // overview 缓存（弹层数据源）
+
+  window.openDetail = function (title, html) {
+    var t = $id("detail-title"), b = $id("detail-body");
+    if (t) t.textContent = title;
+    if (b) b.innerHTML = html;
+    var m = $id("detail-mask");
+    if (m) m.style.display = "flex";
+  };
+  window.closeDetail = function () {
+    var m = $id("detail-mask");
+    if (m) m.style.display = "none";
+  };
+  var _maskEl = $id("detail-mask");
+  if (_maskEl) _maskEl.addEventListener("click", closeDetail);
+
+  function authCardHtml(r) {
+    var who = String(r.workflow_id || "").replace("AKO_", "").replace("_agent", "") || "总控";
+    var conf = r.confidence == null ? "" :
+      '<span class="auth-card-class" style="background:color-mix(in srgb,var(--molten-gold) 18%,transparent);color:var(--molten-gold);">置信 ' + Math.round(r.confidence * 100) + '%</span>';
+    // 2026-09-16：自动出图＝图片生成自动，但任务动作要在总控台看得见 ——
+    // queue='auto' 的工单以只读卡呈现（无批准/拒绝按钮）。
+    var tag = r.status === "deploy_wait" ? "🛠 部署等待"
+      : r.status === "auto_executed" ? "🤖 自动执行 · 无需审批"
+      : "🏛 评审在途";
+    var html = '<div class="auth-card">'
+      + '<div class="auth-card-header"><span class="auth-card-class">' + tag + '</span>' + conf + '</div>'
+      + '<div class="auth-card-title">' + esc(who) + ' · ' + esc(r.summary || r.task_id) + '</div>'
+      + '<div class="auth-card-meta">' + esc(r.task_id) + '<br>来源: ' + esc(r.trigger_agent || r.submitter || "—") + '<br>提交: ' + fmtDT(r.started_at) + '</div>';
+    if (r.status === "manual_review") {
+      html += '<div class="auth-card-actions">'
+        + '<button class="gov-btn gov-btn-approve" onclick="reviewAction(\'' + esc(String(r.task_id).replace(/'/g, "")) + '\',\'approve\')">批准放行</button>'
+        + '<button class="gov-btn gov-btn-reject" onclick="reviewAction(\'' + esc(String(r.task_id).replace(/'/g, "")) + '\',\'reject\')">拒绝</button>'
+        + '</div>';
+    } else if (r.status === "auto_executed") {
+      html += '<div class="modal-note">自动执行单：图片由本地 SDXL 自动生成，已完成入库，无需审批（此处仅作留痕）。</div>';
+    } else {
+      html += '<div class="modal-note">部署等待单：待部署完成后由运维侧转执行，此处不提供操作。</div>';
+    }
+    return html + '</div>';
+  }
+
+  window.reviewAction = async function (taskId, act) {
+    var label = act === "approve" ? "批准放行" : "拒绝";
+    if (!confirm("确认" + label + "工单 " + taskId + " ？")) return;
+    try {
+      var r = await govFetch("/api/governance/review/" + act, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task_id: taskId })
+      });
+      var j = await r.json();
+      if (j.status !== "ok") { alert("操作失败: " + (j.message || "未知错误")); return; }
+    } catch (e) { alert("操作失败: " + e.message); return; }
+    load();  // 刷新计数 + 队列
+  };
+
+  async function fillAuthQueue() {
+    var el = $id("auth-queue");
+    if (!el) return;
+    try {
+      var r = await govFetch("/api/governance/review-queue");
+      var j = await r.json();
+      var q = j.queue || [];
+      var tt = $id("auth-title");
+      if (tt) tt.textContent = "⚖️ 授权审批队列 (" + q.length + ")";
+      if (!q.length) {
+        el.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--soft-green);">✅ 暂无待授权工单，系统通畅。</div>';
+        return;
+      }
+      var more = q.length > 4 ? '<div class="modal-note" style="padding:8px 16px 12px;">还有 ' + (q.length - 4)
+        + ' 条 → 点击顶栏「待授权」查看全部</div>' : "";
+      el.innerHTML = q.slice(0, 4).map(authCardHtml).join("") + more;
+    } catch (e) {
+      el.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--dark-red);">队列加载失败: '
+        + esc(e.message || e) + '</div>';
+    }
+  }
+
+  async function viewAuth() {
+    openDetail("⚖️ 待授权 · 治理评审队列", '<div style="opacity:.7;">加载真实队列…</div>');
+    try {
+      var r = await govFetch("/api/governance/review-queue");
+      var j = await r.json();
+      var q = j.queue || [];
+      if (!q.length) {
+        openDetail("⚖️ 待授权 · 治理评审队列",
+          '<div style="color:var(--soft-green);">✅ 无待授权工单（评审/部署队列均为空）。</div>');
+        return;
+      }
+      openDetail("⚖️ 待授权 · 治理评审队列（" + q.length + "）", q.map(authCardHtml).join(""));
+    } catch (e) {
+      openDetail("⚖️ 待授权 · 治理评审队列", '<div style="color:var(--dark-red);">加载失败: ' + esc(e.message || e) + "</div>");
+    }
+  }
+
+  function viewSystem(o) {
+    var map = { normal: "🟢 正常", degraded: "🟡 降级", down: "🔴 故障" };
+    var h = '<div style="font-size:15px;margin:10px 0 4px;">系统状态: <b>' + (map[o.system_status] || "⚪ 未知") + "</b></div>"
+      + '<div class="modal-note">Agent 在线 ' + o.agents.online + " / 离线 " + o.agents.offline + " / 过载 " + o.agents.overload + " / 共 " + o.agents.total + "</div>";
+    h += "<div style='margin-top:14px;font-weight:600;color:var(--cream-gold);'>Hub 节点</div><div style='margin:6px 0;'>";
+    (o.hub_nodes || []).forEach(function (n) {
+      var dot = n.status === "online" ? "🟢" : (n.status === "degraded" ? "🟡" : "🔴");
+      h += '<span style="margin-right:14px;">' + esc(n.name) + " " + dot + "</span>";
+    });
+    h += "</div>";
+    h += "<div style='margin-top:14px;font-weight:600;color:var(--cream-gold);'>最近事件</div>";
+    var evs = (o.events || []).slice(0, 12);
+    if (!evs.length) h += '<div style="opacity:.7;">暂无事件记录</div>';
+    evs.forEach(function (ev) {
+      var msg = ev.message || ev.event_type || JSON.stringify(ev);
+      h += '<div style="border-left:2px solid color-mix(in srgb,var(--molten-gold) 40%,transparent);padding:3px 8px;margin:4px 0;">'
+        + '<span style="opacity:.7;">' + esc(fmtDT(ev.timestamp || ev.created_at)) + "</span> " + esc(String(msg).slice(0, 120)) + "</div>";
+    });
+    openDetail("🖥 系统状态总览", h);
+  }
+
+  function viewSec(o) {
+    var als = o.alerts || [];
+    if (!als.length) {
+      openDetail("🚨 安全事件", '<div style="color:var(--soft-green);">✅ 系统运行正常，无安全事件。</div>');
+      return;
+    }
+    var h = "";
+    als.slice(0, 30).forEach(function (al) {
+      var sev = { critical: "🔴", high: "🟠", medium: "🟡", low: "🔵" }[String(al.severity || "").toLowerCase()] || "⚪";
+      h += '<div style="border:1px solid color-mix(in srgb,var(--deep-brown) 80%,var(--dark-red) 20%);border-radius:6px;padding:8px 10px;margin:6px 0;">'
+        + '<div><b>' + sev + " " + esc(al.agent_id || al.source_agent || "告警") + "</b>"
+        + ' <span style="opacity:.6;font-size:11px;">' + esc(al.alert_type || "") + " · " + esc(fmtDT(al.created_at)) + "</span></div>"
+        + '<div style="margin-top:3px;">' + esc(al.message || JSON.stringify(al)) + "</div></div>";
+    });
+    if (als.length > 30) h += '<div class="modal-note">仅显示最近 30 条，共 ' + als.length + " 条</div>";
+    openDetail("🚨 安全事件中心（" + als.length + "）", h);
+  }
+
+  function viewSign() {
+    openDetail("📜 待签章（0）",
+      "<div>签章工作流尚未接入治理指挥室，暂无待签章对象。</div>"
+      + "<div class='modal-note'>设计语义：AKO 体系文件产出（文档/工单成果）经治理者确认后签章存档。"
+      + "当前阶段签章动作未落库，此指标恒为 0；待签章流程接入后此处将显示真实计数与明细。</div>");
+  }
+
+  function viewRun(o) {
+    var span = o.hub_beat_span_s;
+    var h = "<div style='font-size:15px;margin:10px 0 4px;'>运行时长（真实下界）: <b>" + fmtSpan(span) + "</b></div>"
+      + "<div class='modal-note'>AKO_hub 心跳自首报持续至今的跨度；心跳库仅追加、重启不重置，"
+      + "因此该值为体系心跳监控存活期下界。</div>";
+    var topo = window.TOPO;
+    h += "<div style='margin-top:14px;font-weight:600;color:var(--cream-gold);'>Agent 在线状态（" + (topo && topo.total != null ? topo.total : "—") + "）</div>";
+    var items = [];
+    if (topo && topo.hub) items.push(topo.hub);
+    if (topo && topo.rings) {
+      ["知识层", "运维层", "工具层"].forEach(function (L) { (topo.rings[L] || []).forEach(function (x) { items.push(x); }); });
+    }
+    if (!items.length) { openDetail("⏱ 运行与服务状态", h + '<div style="opacity:.7;">拓扑数据尚未加载</div>'); return; }
+    items.forEach(function (x) {
+      var st = x.online ? '<span style="color:var(--soft-green);">在线</span>' : '<span style="color:var(--dark-red);">离线</span>';
+      var ld = x.cpu_percent == null ? "—" : Math.round(x.cpu_percent) + "%";
+      h += '<div style="display:flex;justify-content:space-between;border-bottom:1px dashed color-mix(in srgb,var(--amber-gold) 15%,transparent);padding:5px 2px;">'
+        + '<span>' + (x.online ? "🟢" : "⚫") + " " + esc(x.name_zh || x.agent_id)
+        + ' <span style="opacity:.55;font-size:11px;">' + esc(x.agent_id) + " · " + esc(x.layer || "") + "</span></span>"
+        + '<span>' + st + " · 负载 " + ld + " · " + esc(hbAge(x.last_heartbeat)) + "</span></div>";
+    });
+    openDetail("⏱ 运行与服务状态", h);
+  }
+
+  window.openMetricView = function (view) {
+    var o = _lastO;
+    if (!o) { openDetail("提示", "数据尚未加载完成，请稍候…"); return; }
+    if (view === "system") viewSystem(o);
+    else if (view === "auth") viewAuth();
+    else if (view === "sec") viewSec(o);
+    else if (view === "sign") viewSign();
+    else if (view === "run") viewRun(o);
+  };
+
+  function bindMetricPills() {
+    document.querySelectorAll(".metric-pill.clickable").forEach(function (p) {
+      p.addEventListener("click", function () {
+        window.openMetricView(p.getAttribute("data-view"));
+      });
+    });
+  }
+
   async function load() {
     try {
       var r = await govFetch("/api/governance/overview");
       var o = await r.json();
+      _lastO = o;  // 弹层数据源缓存
       renderMetrics(o);
       if (!window.TOPO) renderHeatmap(o.agents.list || []);
       renderSecurity(o);
@@ -1144,6 +1292,7 @@ drawTopology();
       renderHubNodes(o.hub_nodes || []);
       renderLegislation(o.legislation || []);
       applyLiveAgents(o);
+      fillAuthQueue();  // 授权队列（独立接口，失败不阻塞概览）
       try {
         var tr = await govFetch("/api/governance/topology");
         var t = await tr.json();
@@ -1232,6 +1381,7 @@ drawTopology();
   }
 
   bindLogin();
+  bindMetricPills();
   (function restoreSession() {
     try {
       var raw = localStorage.getItem("ako_gov");

@@ -471,6 +471,10 @@ def _normalize_agent_result(result: Any) -> Dict[str, Any]:
             "output_files": result.get("output_files", []) if isinstance(result.get("output_files"), list) else [],
             "summary": result.get("summary", ""),
             "error": result.get("error"),
+            # 2026-09-16：spoke 可请求人工确认（architect 构思确认待命点）。此处是
+            # 白名单归一化 —— 漏放行则信号在本层静默消失，终态节点照样写 done
+            # （实测：设计任务投递后未进中控台审批队列，即此因）。
+            "spoke_status": result.get("spoke_status"),
         }
     if isinstance(result, str):
         return {"output_files": [], "summary": result, "error": None}
@@ -825,27 +829,44 @@ def state_aggregator(state: MasterState) -> Dict[str, Any]:
     if not summary and generated_files:
         summary = f"完成，注册 {len(generated_files)} 个文件"
 
+    # 2026-09-16：spoke 可请求人工确认（architect 构思确认待命点）。此前一律写 done，
+    # 于是"等人确认的设计"在中控台审批队列（只列 manual_review/deploy_wait）永远不出现。
+    # status 列有 CHECK 约束，故只认白名单取值，其余仍按完成处理。
+    requested = ""
+    if isinstance(spoke_output, dict):
+        requested = str(spoke_output.get("spoke_status", "") or "").strip()
+    if requested == "manual_review":
+        final_status, final_queue = "manual_review", "manual_review"
+    elif requested == "auto_executed":
+        # AKO_studio 口径（2026-09-16）：自动出图 = 图片生成自动，但任务动作
+        # 要在总控台看得见。状态仍是 done（图已出、无需审批），queue 标 auto，
+        # 总控台据此在授权队列里以只读卡呈现任务动作。
+        final_status, final_queue = "done", "auto"
+    else:
+        final_status, final_queue = "done", "main"
+
     try:
         with HubDB(paths["db_path"]) as db:
             output_ids = json.dumps(generated_files) if generated_files else ""
             db.execute(
                 """INSERT INTO task_queue
-                   (task_id, workflow_id, trigger_agent, status,
+                   (task_id, workflow_id, trigger_agent, status, queue,
                     output_file_ids, error_log, finished_at)
-                   VALUES (?,?,?,?,?,?,?)
+                   VALUES (?,?,?,?,?,?,?,?)
                    ON CONFLICT(task_id) DO UPDATE SET
                        status=excluded.status,
+                       queue=excluded.queue,
                        output_file_ids=excluded.output_file_ids,
                        error_log=excluded.error_log,
                        finished_at=excluded.finished_at""",
                 (task_id, state.get("target_workflow", ""), state.get("trigger_agent", "manual"),
-                 "done", output_ids, summary, datetime.now().isoformat()),
+                 final_status, final_queue, output_ids, summary, datetime.now().isoformat()),
             )
     except Exception:
         pass
 
     return {
-        "status": "done",
+        "status": final_status,
         "output_summary": summary,
         "finished_at": datetime.now().isoformat(),
     }

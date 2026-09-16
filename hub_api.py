@@ -230,12 +230,30 @@ def allocate_wo(
 
 
 def _wo_ack(wo_number: str, db: HubDB) -> Dict[str, Any]:
-    """构造 ACK 负载。"""
-    pending = db.fetchone("SELECT COUNT(*) AS cnt FROM task_queue WHERE status='pending'")
+    """构造 ACK 负载。
+
+    queue_position = **同队列中排在本工单前面的 pending 数**（不含自己），
+    空闲系统为 0。前端把它读作「前面还有 N 个」，故口径必须是"前面有几个"。
+
+    2026-09-16 修复：原实现取「全表 status='pending' 计数」，且调用点在
+    本工单落库（status='pending'）之后，恒 ≥1 —— 空闲系统投递一张单也报
+    「前面还有 1 个」，那个 1 是任务自己；同时未按 queue 收窄，别的队列
+    的 pending 会算到自己头上。
+
+    按 rowid 排序而非 started_at：同一秒内投递的多张单时间戳会打平。
+    """
+    row = db.fetchone("SELECT queue, rowid AS rid FROM task_queue WHERE task_id=?", (wo_number,))
+    queue = (row or {}).get("queue") or "main"
+    rid = (row or {}).get("rid") or 0
+    ahead = db.fetchone(
+        "SELECT COUNT(*) AS cnt FROM task_queue "
+        "WHERE status='pending' AND queue=? AND rowid < ?",
+        (queue, rid),
+    )
     return {
         "status": "acknowledged",
         "wo_number": wo_number,
-        "queue_position": int(pending["cnt"]) if pending else 0,
+        "queue_position": int(ahead["cnt"]) if ahead else 0,
         "estimated_start": datetime.now().isoformat(),
         "hub_trace_id": f"hub-trace-{wo_number}",
     }
