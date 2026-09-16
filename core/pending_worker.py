@@ -189,6 +189,16 @@ def run_loop(
                 logger.info("consume 轮次: %s", stats)
         except Exception as exc:  # noqa: BLE001
             logger.error("consume 轮次异常: %s", exc)
+        # 2026-09-16：顺带消费事件总线 —— 此前没有任何消费者，pending 积压 652 条
+        # （含 538 条 fuse_alert 熔断告警），完成事件无人过目、也不归档。
+        try:
+            from core.event_consumer import drain_events_once
+
+            ev = drain_events_once(db_path=db_path)
+            if ev.get("handled") or ev.get("failed"):
+                logger.info("事件消费轮次: %s", ev)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("事件消费异常: %s", exc)
         time.sleep(interval)
 
 

@@ -23,6 +23,10 @@ WEB_CONSULT_DIR = AKO_ROOT / "AKO_web_consult_agent"
 IDENTITY_DIR = AKO_ROOT / "AKO_identity_service"
 MONITOR_DIR = AKO_ROOT / "AKO_monitor_agent"
 QUOTE_DIR = AKO_ROOT / "AKO_quote_agent"
+# 2026-09-16：运维类 agent 此前不在任何启动/守护清单里 —— 集群巡检的日志
+# 自 2026-08-25 起为空、心跳表 0 行，等于长期无人拉起（仅开机自启链里的
+# 那些 agent 会被带起来）。下面纳入守护。
+CLUSTER_GUARDIAN_DIR = AKO_ROOT / "AKO_cluster_guardian_agent"
 
 # 自动重启约束：连续 OFFLINE_RESTART_AFTER 次判定后重启，每小时最多 MAX_RESTARTS_PER_HOUR 次
 OFFLINE_RESTART_AFTER = 2
@@ -128,6 +132,28 @@ def probe_monitor(ap: AgentProc) -> bool:
     return ap.proc is not None and ap.proc.poll() is None
 
 
+def probe_cluster_guardian(ap: AgentProc) -> bool:
+    """集群巡检无自开 HTTP：以其在 hub(:5000) 心跳的最近上报为存活判据。
+
+    daemon 模式自带心跳客户端（interval 30s），判活窗口取 90s 留裕度。
+    """
+    if ap.proc is None or ap.proc.poll() is not None:
+        return False
+    try:
+        with requests.get("http://127.0.0.1:5000/agents", timeout=5) as r:
+            data = r.json()
+        agents = data.get("agents", []) if isinstance(data, dict) else []
+        for a in agents:
+            if a.get("agent_id") == "AKO_cluster_guardian_agent":
+                try:
+                    return int(a.get("seconds_ago", 999)) <= 90
+                except (TypeError, ValueError):
+                    return False
+        return False
+    except Exception:
+        return False
+
+
 def probe_quote(ap: AgentProc) -> bool:
     """quote 服务无自开 HTTP：以其在 hub(:5000) 心跳 DB 的最近上报为存活判据。
 
@@ -191,27 +217,67 @@ def _is_live_supervisor(pid: int) -> bool:
         return False
 
 
-def _acquire_singleton() -> bool:
-    """接管 pid 锁；另一活 supervisor 在位则返回 False。"""
-    if SUPERVISOR_LOCK.exists():
-        try:
-            old = int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
-            if _is_live_supervisor(old):
-                return False
-        except (ValueError, OSError):
-            pass
-    SUPERVISOR_LOCK.write_text(str(os.getpid()), encoding="utf-8")
+# 2026-09-11 补：原子独占创建。
+#
+# 2026-09-09 的 pid 锁已能挡住「顺序启动」的第二实例，但挡不住「同时启动」——
+# 原实现先 exists/read 判断、再 write_text，两个进程可同时读到陈旧或空缺状态
+# 并双双写入，双双返回 True。实测本机因此并存两个 supervisor（PID 9748/15112，
+# 分别由计划任务与手动两条入口拉起），各拉一套 10 个 agent → 每个 agent 双实例
+# 抢同一端口（Windows 允许重复 bind 不报错，故障静默）。
+#
+# 现以 O_CREAT|O_EXCL 为唯一裁决点：读到的锁只用于判断「是否该清除陈旧锁」，
+# 绝不作为持锁依据。
+LOCK_ACQUIRE_ATTEMPTS = 5
+
+
+def _try_create_lock() -> bool:
+    """原子独占创建锁文件并写入本进程 pid；已被占用返回 False。"""
+    SUPERVISOR_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(SUPERVISOR_LOCK), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, str(os.getpid()).encode("utf-8"))
+    finally:
+        os.close(fd)
     return True
 
 
-def _release_singleton() -> None:
+def _read_lock_pid() -> int | None:
+    """读锁内 pid；文件缺失或内容损坏返回 None。"""
     try:
-        if SUPERVISOR_LOCK.exists():
-            cur = int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
-            if cur == os.getpid():
-                SUPERVISOR_LOCK.unlink()
+        return int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
     except (ValueError, OSError):
-        pass
+        return None
+
+
+def _acquire_singleton() -> bool:
+    """接管 pid 锁；另一活 supervisor 在位则返回 False。"""
+    for _ in range(LOCK_ACQUIRE_ATTEMPTS):
+        if _try_create_lock():
+            return True
+        old = _read_lock_pid()
+        if old is not None and _is_live_supervisor(old):
+            return False  # 另一活实例在位，让位
+        # 陈旧锁（pid 已死 / 非 supervisor / 内容损坏）：清除后重试。
+        # 并发下可能已被对手清掉 → FileNotFoundError 属正常，继续抢。
+        try:
+            SUPERVISOR_LOCK.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False  # 不可恢复错误：保守让位，避免双实例
+    return False
+
+
+def _release_singleton() -> None:
+    """仅当锁属于本进程时释放（防误清活实例的锁 → 引出第三个实例）。"""
+    if _read_lock_pid() == os.getpid():
+        try:
+            SUPERVISOR_LOCK.unlink()
+        except OSError:
+            pass
 
 
 def _agent_already_running(ap: AgentProc) -> bool:
@@ -321,6 +387,12 @@ def _main_loop() -> None:
             [str(Path(sys.executable)), "main.py"],
             MONITOR_DIR,
             probe_monitor,
+        ),
+        AgentProc(
+            "AKO_cluster_guardian_agent",
+            [str(Path(sys.executable)), "main.py", "--mode", "daemon"],
+            CLUSTER_GUARDIAN_DIR,
+            probe_cluster_guardian,
         ),
         # 2026-09-03 批2 收尾：quote 纳入 supervisor（第 10 服务）。
         # quote app.py 主流程含 SDK 自注册+心跳（无自开 HTTP），以 registry 注册为探针。

@@ -64,6 +64,7 @@ VALID_EVENT_TYPES = {
     "alert_raised": "Guardian 发出告警",
     "dispatch_complete": "dispatch 指令处理完成",
     "agent_shipped": "Agent 已发布",
+    "fuse_alert": "监控熔断告警（AKO_monitor_agent 发出，需人工解除或超时自解）",
 }
 
 
