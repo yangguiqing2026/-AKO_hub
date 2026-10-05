@@ -23,10 +23,21 @@ WEB_CONSULT_DIR = AKO_ROOT / "AKO_web_consult_agent"
 IDENTITY_DIR = AKO_ROOT / "AKO_identity_service"
 MONITOR_DIR = AKO_ROOT / "AKO_monitor_agent"
 QUOTE_DIR = AKO_ROOT / "AKO_quote_agent"
+# 2026-09-16：运维类 agent 此前不在任何启动/守护清单里 —— 集群巡检的日志
+# 自 2026-08-25 起为空、心跳表 0 行，等于长期无人拉起（仅开机自启链里的
+# 那些 agent 会被带起来）。下面纳入守护。
+CLUSTER_GUARDIAN_DIR = AKO_ROOT / "AKO_cluster_guardian_agent"
 
 # 自动重启约束：连续 OFFLINE_RESTART_AFTER 次判定后重启，每小时最多 MAX_RESTARTS_PER_HOUR 次
 OFFLINE_RESTART_AFTER = 2
 MAX_RESTARTS_PER_HOUR = 3
+
+# 2026-10-05（WO-HAI-20261005-005）：guardian 功能级探针参数
+# N=26h：值守巡检 24h 周期（每日 05:30）+ 钩子窗口（00:30~04:00），
+#        最长合法产出间隔 ≈20.5h；取 24h+2h 裕度。论证详见验收报告。
+GUARDIAN_FRESHNESS_HOURS = 26
+# 冷启动宽限：进程新起 ≤120 分钟且无任何产出时视为"未就绪"（放行，不判死）
+GUARDIAN_COLD_START_MINUTES = 120
 
 # registry agent uses its own venv python
 REGISTRY_PY = REGISTRY_DIR / ".venv" / "Scripts" / "python.exe"
@@ -51,7 +62,7 @@ if not GUARDIAN_PY.exists():
 
 
 class AgentProc:
-    def __init__(self, agent_id: str, cmd, cwd, probe):
+    def __init__(self, agent_id: str, cmd, cwd, probe, capture_log: Path | None = None):
         self.agent_id = agent_id
         self.cmd = cmd
         self.cwd = str(cwd)
@@ -59,14 +70,43 @@ class AgentProc:
         self.proc: subprocess.Popen | None = None
         self.offline_streak: int = 0
         self.restarts: list[float] = []  # 重启时间戳（用于每小时限流）
+        # 2026-10-05（WO-005）：温启动"接管"标记——既有实例不由本进程 Popen 持有
+        # （旧代码此情形下 probe 直接 False → 会触发双实例式重启，属部署安全隐患）
+        self.adopted: bool = False
+        # 可选：子进程 stdout/stderr 落盘（DEVNULL 曾使停摆事故零取证）
+        self.capture_log: Path | None = Path(capture_log) if capture_log else None
 
     def start(self) -> None:
-        self.proc = subprocess.Popen(
-            self.cmd,
-            cwd=self.cwd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        out = subprocess.DEVNULL
+        err = subprocess.DEVNULL
+        self._capture_fh = None
+        if self.capture_log is not None:
+            try:
+                self.capture_log.parent.mkdir(parents=True, exist_ok=True)
+                # 简易轮转：>5MB 时滚动到 .1（保留一份）
+                if self.capture_log.exists() and self.capture_log.stat().st_size > 5_242_880:
+                    bak = self.capture_log.with_suffix(self.capture_log.suffix + ".1")
+                    try:
+                        if bak.exists():
+                            bak.unlink()
+                        self.capture_log.rename(bak)
+                    except OSError:
+                        pass
+                self._capture_fh = open(self.capture_log, "a", encoding="utf-8")
+                out = self._capture_fh
+                err = self._capture_fh
+            except OSError:
+                out = subprocess.DEVNULL
+                err = subprocess.DEVNULL
+        self.proc = subprocess.Popen(self.cmd, cwd=self.cwd, stdout=out, stderr=err)
+
+    def is_process_alive(self) -> bool:
+        """进程存活（含"接管态"：由既有实例匹配器复核）。"""
+        if self.proc is not None:
+            return self.proc.poll() is None
+        if self.adopted:
+            return _agent_already_running(self)
+        return False
 
     def restart(self, now: float) -> bool:
         """受限自动重启：每小时最多 MAX_RESTARTS_PER_HOUR 次。返回是否执行了重启。"""
@@ -79,13 +119,26 @@ class AgentProc:
                 self.proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
+        elif self.adopted:
+            # 接管态重启：按匹配器定位既有实例并终止（防双实例），再全新拉起
+            for pid in _running_pids(self):
+                try:
+                    p = psutil.Process(pid)
+                    p.terminate()
+                    try:
+                        p.wait(timeout=10)
+                    except psutil.TimeoutExpired:
+                        p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            self.adopted = False
         self.start()
         self.restarts.append(now)
         self.offline_streak = 0
         return True
 
     def is_online(self) -> bool:
-        if self.proc is None:
+        if not self.is_process_alive():
             return False
         return self.probe(self)
 
@@ -97,35 +150,165 @@ def _http_ok(url: str, timeout: float = 3.0) -> bool:
         return False
 
 def probe_qc(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:5001/health")
+    return ap.is_process_alive() and _http_ok("http://127.0.0.1:5001/health")
 
 def probe_registry(ap: AgentProc) -> bool:
     return (
-        ap.proc is not None
-        and ap.proc.poll() is None
+        ap.is_process_alive()
         and _http_ok("http://127.0.0.1:5024/ako/api/v1/registry/health")
     )
 
 def probe_audit(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None
+    return ap.is_process_alive()
 
 def probe_law(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:8001/health")
+    return ap.is_process_alive() and _http_ok("http://127.0.0.1:8001/health")
 
 def probe_knowledge(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:8000/docs")
+    return ap.is_process_alive() and _http_ok("http://127.0.0.1:8000/docs")
 
 def probe_guardian(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:5033/health")
+    return ap.is_process_alive() and _http_ok("http://127.0.0.1:5033/health")
 
 def probe_web_consult(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:7863/docs")
+    return ap.is_process_alive() and _http_ok("http://127.0.0.1:7863/docs")
 
 def probe_identity(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None and _http_ok("http://127.0.0.1:5025/health")
+    return ap.is_process_alive() and _http_ok("http://127.0.0.1:5025/health")
 
 def probe_monitor(ap: AgentProc) -> bool:
-    return ap.proc is not None and ap.proc.poll() is None
+    return ap.is_process_alive()
+
+
+def probe_cluster_guardian(ap: AgentProc) -> bool:
+    """集群巡检功能级探针（WO-HAI-20261005-005 方案A，审签批准）：
+
+    双重证据 = ①进程存活 ②hub 心跳 ≤90s ③**近期产出新鲜度**（≤26h）。
+
+    2026-10-05 停摆事故教训（根因分析见验收报告）：
+    - 本文件心跳循环会「代发」各 agent 心跳（post_heartbeat），单看 hub 心跳
+      是循环自证——旧实例功能停摆 7 天仍显示 ONLINE 的直接原因；
+    - 产出新鲜度（output/patrol、output/audit、output/guardian_run）由守护进程
+      自身写入，不可自证，是本探针的决定性证据。
+
+    N=26h 论证：值守巡检 24h 周期（每日 05:30）+ 钩子 00:30~04:00，
+    最长合法产出间隔 ≈20.5h；取 26h（24h+2h 裕度）。
+    冷启动宽限：进程新起 ≤120 分钟且尚无任何产出时视为未就绪（放行）。
+    """
+    if not ap.is_process_alive():
+        return False
+    hb_ok = _guardian_hub_heartbeat_ok()
+    age_hours = _guardian_output_age_hours()
+    proc_age_min = _proc_age_minutes(ap)
+    return _functional_ok(hb_ok, age_hours, proc_age_min)
+
+
+def _guardian_hub_heartbeat_ok(timeout: float = 5.0) -> bool:
+    """hub 心跳 ≤90s（辅助证据；注意其可能由 supervisor 代发）。"""
+    try:
+        r = requests.get("http://127.0.0.1:5000/agents", timeout=timeout)
+        data = r.json()
+        agents = data.get("agents", []) if isinstance(data, dict) else []
+        for a in agents:
+            if a.get("agent_id") == "AKO_cluster_guardian_agent":
+                try:
+                    return int(a.get("seconds_ago", 999)) <= 90
+                except (TypeError, ValueError):
+                    return False
+        return False
+    except Exception:
+        return False
+
+
+def _newest_output_age_hours(base_dir: Path) -> float | None:
+    """目录下三类产出（patrol/audit/run）最新文件的年龄（小时）；无产出返回 None。
+
+    纯函数（可单测）：产出新鲜度是本探针不可自证的独立证据。
+    """
+    newest = 0.0
+    for pattern in ("output/patrol/guardian_patrol_*.json",
+                    "output/audit/guardian_audit_*.jsonl",
+                    "output/guardian_run_*.json"):
+        for f in base_dir.glob(pattern):
+            try:
+                m = f.stat().st_mtime
+                if m > newest:
+                    newest = m
+            except OSError:
+                continue
+    if newest <= 0:
+        return None
+    return (time.time() - newest) / 3600.0
+
+
+def _guardian_output_age_hours() -> float | None:
+    """guardian 最近产出距今小时数（多源取最新）；无任何产出返回 None。"""
+    return _newest_output_age_hours(CLUSTER_GUARDIAN_DIR)
+
+
+def _proc_age_minutes(ap: AgentProc) -> float:
+    """进程已运行分钟数；不可得时返回大值（按已就绪处理）。"""
+    try:
+        if ap.proc is not None:
+            return (time.time() - psutil.Process(ap.proc.pid).create_time()) / 60.0
+        pids = _running_pids(ap)
+        if pids:
+            return (time.time() - psutil.Process(pids[0]).create_time()) / 60.0
+    except Exception:
+        pass
+    return 9999.0
+
+
+def _functional_ok(hb_ok: bool, age_hours: float | None, proc_age_minutes: float) -> bool:
+    """功能级判定（纯函数，便于单测）：
+    产出新鲜=决定性证据；无产出时按冷启动宽限（≤120min 放行）。心跳为辅助。"""
+    if age_hours is not None:
+        fresh = age_hours <= GUARDIAN_FRESHNESS_HOURS
+    else:
+        fresh = proc_age_minutes < GUARDIAN_COLD_START_MINUTES
+    return hb_ok and fresh
+
+
+def _notify_guardian_functional_down(evidence: str) -> None:
+    """探针判死后告警出口（铁律5）：经 guardian 告警派发器（netwatch 通道）。
+
+    禁止新建 SMTP 通道（本函数不引入任何 SMTP 配置；凭据经 netwatch
+    secrets.env 同源注入进程环境，不入库、不硬编码）。
+    """
+    try:
+        secrets_path = AKO_ROOT / "AKO_netwatch_agent" / "secrets.env"
+        if secrets_path.exists():
+            for line in secrets_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+        gdir = str(CLUSTER_GUARDIAN_DIR)
+        if gdir not in sys.path:
+            sys.path.insert(0, gdir)
+        from src.core.patrol import load_active_duty_config  # type: ignore
+        from src.core.health_probe import AgentHealth, CheckOutcome, now_beijing  # type: ignore
+        from src.core.alert_dispatcher import AlertDispatcher  # type: ignore
+
+        cfg = load_active_duty_config()
+        dispatcher = AlertDispatcher(cfg)
+        health = AgentHealth(
+            agent_id="AKO_cluster_guardian_agent",
+            verdict="DOWN",
+            checks=[CheckOutcome("supervisor_functional_probe", "fail", evidence)],
+            checked_at=now_beijing().isoformat(),
+        )
+        decision = {
+            "agent_id": "AKO_cluster_guardian_agent",
+            "verdict": "DOWN",
+            "action": "alert_only",
+            "reason": "supervisor 功能级探针判死（心跳+产出双证据），进入受限重启机制",
+        }
+        r = dispatcher.dispatch(health, decision, "supervisor_watchdog", dry_run=False)
+        print(f"[supervisor] guardian 功能死告警: mode={r.get('mode')} sent={r.get('sent')} "
+              f"err={r.get('error', '')}")
+    except Exception as e:
+        print(f"[supervisor] guardian 功能死告警发送失败（仅记录，不阻断监督）: {e}")
 
 
 def probe_quote(ap: AgentProc) -> bool:
@@ -135,7 +318,7 @@ def probe_quote(ap: AgentProc) -> bool:
     （registry_url 见 quote config.yaml），5024 不再有 quote 上报，继续查
     5024 会误判死亡触发反复重启。hub 收心跳即登记 agents_registry。
     """
-    if ap.proc is None or ap.proc.poll() is not None:
+    if not ap.is_process_alive():
         return False
     try:
         with requests.get("http://127.0.0.1:5000/agents", timeout=5) as r:
@@ -191,40 +374,82 @@ def _is_live_supervisor(pid: int) -> bool:
         return False
 
 
-def _acquire_singleton() -> bool:
-    """接管 pid 锁；另一活 supervisor 在位则返回 False。"""
-    if SUPERVISOR_LOCK.exists():
-        try:
-            old = int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
-            if _is_live_supervisor(old):
-                return False
-        except (ValueError, OSError):
-            pass
-    SUPERVISOR_LOCK.write_text(str(os.getpid()), encoding="utf-8")
+# 2026-09-11 补：原子独占创建。
+#
+# 2026-09-09 的 pid 锁已能挡住「顺序启动」的第二实例，但挡不住「同时启动」——
+# 原实现先 exists/read 判断、再 write_text，两个进程可同时读到陈旧或空缺状态
+# 并双双写入，双双返回 True。实测本机因此并存两个 supervisor（PID 9748/15112，
+# 分别由计划任务与手动两条入口拉起），各拉一套 10 个 agent → 每个 agent 双实例
+# 抢同一端口（Windows 允许重复 bind 不报错，故障静默）。
+#
+# 现以 O_CREAT|O_EXCL 为唯一裁决点：读到的锁只用于判断「是否该清除陈旧锁」，
+# 绝不作为持锁依据。
+LOCK_ACQUIRE_ATTEMPTS = 5
+
+
+def _try_create_lock() -> bool:
+    """原子独占创建锁文件并写入本进程 pid；已被占用返回 False。"""
+    SUPERVISOR_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(SUPERVISOR_LOCK), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, str(os.getpid()).encode("utf-8"))
+    finally:
+        os.close(fd)
     return True
 
 
-def _release_singleton() -> None:
+def _read_lock_pid() -> int | None:
+    """读锁内 pid；文件缺失或内容损坏返回 None。"""
     try:
-        if SUPERVISOR_LOCK.exists():
-            cur = int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
-            if cur == os.getpid():
-                SUPERVISOR_LOCK.unlink()
+        return int(SUPERVISOR_LOCK.read_text(encoding="utf-8").strip())
     except (ValueError, OSError):
-        pass
+        return None
 
 
-def _agent_already_running(ap: AgentProc) -> bool:
-    """该 agent 是否已有实例在跑（同命令尾部 + 同 cwd 的 python 进程，排除自己）。
+def _acquire_singleton() -> bool:
+    """接管 pid 锁；另一活 supervisor 在位则返回 False。"""
+    for _ in range(LOCK_ACQUIRE_ATTEMPTS):
+        if _try_create_lock():
+            return True
+        old = _read_lock_pid()
+        if old is not None and _is_live_supervisor(old):
+            return False  # 另一活实例在位，让位
+        # 陈旧锁（pid 已死 / 非 supervisor / 内容损坏）：清除后重试。
+        # 并发下可能已被对手清掉 → FileNotFoundError 属正常，继续抢。
+        try:
+            SUPERVISOR_LOCK.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False  # 不可恢复错误：保守让位，避免双实例
+    return False
+
+
+def _release_singleton() -> None:
+    """仅当锁属于本进程时释放（防误清活实例的锁 → 引出第三个实例）。"""
+    if _read_lock_pid() == os.getpid():
+        try:
+            SUPERVISOR_LOCK.unlink()
+        except OSError:
+            pass
+
+
+def _running_pids(ap: AgentProc) -> list:
+    """该 agent 的既有实例 pid 列表（同命令尾部 + 同 cwd 的 python 进程，排除自己）。
 
     2026-09-09 防复发：第二 supervisor 或重复 start 时不再重复拉起同一 agent。
     须带 cwd 判定：多 agent 命令尾部同为 "app.py"（quote/guardian），且 hub
     (pythonw app.py) 也在跑——只比尾部会把 hub 误判为 quote 已在线而 skip。
+    2026-10-05（WO-005）：拆出 pid 列表供"接管态重启"使用。
     """
     if len(ap.cmd) < 2:
-        return False
+        return []
     tail = " ".join(ap.cmd[1:])
     me = os.getpid()
+    pids = []
     for p in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             if p.info.get("pid") == me:
@@ -237,14 +462,19 @@ def _agent_already_running(ap: AgentProc) -> bool:
                 continue
             try:
                 if str(p.cwd()).lower() == str(ap.cwd).lower():
-                    return True
+                    pids.append(p.info["pid"])
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 # cwd 不可读：仅尾部匹配时要求非 pythonw（排除 hub 误判）
                 if not name.endswith("pythonw"):
-                    return True
+                    pids.append(p.info["pid"])
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
-    return False
+    return pids
+
+
+def _agent_already_running(ap: AgentProc) -> bool:
+    """该 agent 是否已有实例在跑。"""
+    return bool(_running_pids(ap))
 
 
 def main() -> None:
@@ -322,6 +552,14 @@ def _main_loop() -> None:
             MONITOR_DIR,
             probe_monitor,
         ),
+        AgentProc(
+            "AKO_cluster_guardian_agent",
+            [str(Path(sys.executable)), "main.py", "--mode", "daemon"],
+            CLUSTER_GUARDIAN_DIR,
+            probe_cluster_guardian,
+            # WO-005：daemon stdout/stderr 落盘（DEVNULL 曾使停摆事故零取证）
+            capture_log=CLUSTER_GUARDIAN_DIR / "logs" / "guardian_daemon.log",
+        ),
         # 2026-09-03 批2 收尾：quote 纳入 supervisor（第 10 服务）。
         # quote app.py 主流程含 SDK 自注册+心跳（无自开 HTTP），以 registry 注册为探针。
         # 注：supervisor 当前未在本机运行（9 服务心跳由各自 SDK 自嵌上报）；
@@ -338,8 +576,9 @@ def _main_loop() -> None:
     for ap in agents:
         try:
             if _agent_already_running(ap):
-                print(f"[supervisor] {ap.agent_id} 已有实例在跑 - skip")
-                ap.proc = None  # 不接管既有实例（探针走 HTTP/进程，不依赖 proc 句柄）
+                print(f"[supervisor] {ap.agent_id} 已有实例在跑 - 接管（adopted）")
+                ap.proc = None
+                ap.adopted = True  # 2026-10-05（WO-005）：接管态参与探针与重启，防温启动双实例
                 continue
             ap.start()
             print(f"[supervisor] started {ap.agent_id} (pid={ap.proc.pid})")
@@ -377,6 +616,12 @@ def _main_loop() -> None:
                         if restarted:
                             print(f"[supervisor] auto-restart {ap.agent_id} (offline x{ap.offline_streak})")
                             online = True
+                            # WO-005 铁律5：guardian 功能死 → 经获批告警出口（guardian 派发器/netwatch 通道）
+                            if ap.agent_id == "AKO_cluster_guardian_agent":
+                                age = _guardian_output_age_hours()
+                                _notify_guardian_functional_down(
+                                    f"probe fail x{ap.offline_streak}; "
+                                    f"output_age_hours={round(age, 2) if age is not None else '无产出'}")
                 state = "ONLINE" if online else "OFFLINE"
                 row.append(f"{ap.agent_id}={state}")
             row.append("AKO_git_push_agent=OFFLINE(cli)")

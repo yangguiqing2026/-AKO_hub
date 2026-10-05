@@ -44,3 +44,8 @@ class MasterState(TypedDict):
     kb_status: Optional[str]              # kb_allocator 节点填充：ok / missing / forbidden
     sync_status: Optional[str]           # sync_monitor 节点填充：ok / mismatch / partial
     spoke_output_paths: List[str]        # workflow_caller 从 Spoke 返回的原始路径列表
+    # 2026-09-16：workflow_caller 归一化后的 Spoke 返回字典（summary/output_files/
+    # error/spoke_status），file_collector 与 state_aggregator 都要读。此前漏声明 ——
+    # LangGraph 只保留 schema 声明的通道，该键在图上被静默丢弃：spoke 的 summary 从未
+    # 写进工单（库中恒为"完成，注册 N 个文件"兜底），spoke_status 同理到不了终态节点。
+    spoke_output: Dict[str, Any]

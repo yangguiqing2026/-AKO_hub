@@ -292,6 +292,9 @@ SPOKE_REGISTRY: List[SpokeInfo] = [
         "status": "registered",
         "source_dir": "D:/AKO/AKO_writer_agent",
         "invoke_mode": "importlib",
+        # 产物目录里同时存放 md 草稿/插图/outline 等中间件，输出目录快照差集会把
+        # 它们一并注册、工作台列出一串下载链接。故以自报清单为准（2026-09-14）。
+        "file_scan": "spoke_only",
     },
     # ── 批2 工具/GUI 型（L0 注册级，invoke_mode=manual_gui：看板可见、禁止 hub 调度）─
     # 2026-09-03 口径：chart/art/web_consult=GUI 人工；git_push/pack/pipeline/
