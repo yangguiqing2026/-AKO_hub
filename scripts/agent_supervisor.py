@@ -101,12 +101,16 @@ class AgentProc:
         self.proc = subprocess.Popen(self.cmd, cwd=self.cwd, stdout=out, stderr=err)
 
     def is_process_alive(self) -> bool:
-        """进程存活（含"接管态"：由既有实例匹配器复核）。"""
-        if self.proc is not None:
-            return self.proc.poll() is None
-        if self.adopted:
-            return _agent_already_running(self)
-        return False
+        """进程存活（句柄存活，或由既有实例匹配器复核）。
+
+        2026-10-05（WO-007）修复：原实现在 proc 句柄"存在但已死"时直接返回 False，
+        匹配器被永久跳过——"句柄死 + adopted=False"（restart().start() 拉起的子
+        进程退出/被清除后的残留态）下，即使存在活着的既有实例也被永久判死，
+        状态行恒 OFFLINE（WO-006 §四·观察4 矛盾根因）。现统一回退匹配器复核。
+        """
+        if self.proc is not None and self.proc.poll() is None:
+            return True
+        return _agent_already_running(self)
 
     def restart(self, now: float) -> bool:
         """受限自动重启：每小时最多 MAX_RESTARTS_PER_HOUR 次。返回是否执行了重启。"""
