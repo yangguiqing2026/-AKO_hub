@@ -98,7 +98,11 @@ class AgentProc:
             except OSError:
                 out = subprocess.DEVNULL
                 err = subprocess.DEVNULL
-        self.proc = subprocess.Popen(self.cmd, cwd=self.cwd, stdout=out, stderr=err)
+        # WO-008 P1-7：强制子进程无缓冲（等效 python -u）——PYTHONUNBUFFERED 沿启动链
+        # 传递到基础解释器，消除 stdout 块缓冲致 guardian_daemon.log 存活期恒空；
+        # 不改动 self.cmd 形态，避免影响 _running_pids 的命令尾部匹配。
+        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        self.proc = subprocess.Popen(self.cmd, cwd=self.cwd, stdout=out, stderr=err, env=env)
 
     def is_process_alive(self) -> bool:
         """进程存活（句柄存活，或由既有实例匹配器复核）。
@@ -116,6 +120,12 @@ class AgentProc:
         """受限自动重启：每小时最多 MAX_RESTARTS_PER_HOUR 次。返回是否执行了重启。"""
         self.restarts = [t for t in self.restarts if now - t < 3600]
         if len(self.restarts) >= MAX_RESTARTS_PER_HOUR:
+            # WO-008 P1-5：熔断拒绝可见化（被拒对象 + 剩余冷却时间；此前为静默 return）
+            cooldown = min(t + 3600 - now for t in self.restarts)
+            print(f"[supervisor] restart throttled {self.agent_id}: "
+                  f"近 1 小时已重启 {len(self.restarts)}/{MAX_RESTARTS_PER_HOUR} 次，"
+                  f"剩余冷却 {cooldown:.0f}s"
+                  f"（最早 {time.strftime('%H:%M:%S', time.localtime(min(self.restarts) + 3600))} 可重试）")
             return False
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
@@ -273,6 +283,13 @@ def _functional_ok(hb_ok: bool, age_hours: float | None, proc_age_minutes: float
     return hb_ok and fresh
 
 
+def _format_alert_result(result: dict) -> str:
+    """告警结果单行格式化（WO-008 P1-6：含 subject，供【测试】前缀实证与运维核对）。"""
+    return (f"[supervisor] guardian 功能死告警: mode={result.get('mode')} "
+            f"sent={result.get('sent')} subject={result.get('subject', '')} "
+            f"err={result.get('error', '')}")
+
+
 def _notify_guardian_functional_down(evidence: str) -> None:
     """探针判死后告警出口（铁律5）：经 guardian 告警派发器（netwatch 通道）。
 
@@ -309,8 +326,7 @@ def _notify_guardian_functional_down(evidence: str) -> None:
             "reason": "supervisor 功能级探针判死（心跳+产出双证据），进入受限重启机制",
         }
         r = dispatcher.dispatch(health, decision, "supervisor_watchdog", dry_run=False)
-        print(f"[supervisor] guardian 功能死告警: mode={r.get('mode')} sent={r.get('sent')} "
-              f"err={r.get('error', '')}")
+        print(_format_alert_result(r))
     except Exception as e:
         print(f"[supervisor] guardian 功能死告警发送失败（仅记录，不阻断监督）: {e}")
 
