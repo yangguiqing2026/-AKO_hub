@@ -4,7 +4,7 @@ import subprocess, sys, os, time, socket
 
 PY = os.environ.get("AKO_PYTHON", r"C:\Users\Administrator\AppData\Local\Programs\Python\Python312\python.exe")
 HUB_DIR = os.environ.get("AKO_HUB_DIR", r"D:\AKO\AKO_hub")
-PORTS = {80: "Dashboard", 8080: "Hub HTTP", 5000: "Hub Heartbeat"}
+PORTS = {8081: "Dashboard", 8080: "Hub HTTP", 5000: "Hub Heartbeat"}
 
 def port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -18,6 +18,18 @@ def wait_port(port, timeout=15):
         time.sleep(0.5)
     return False
 
+def proc_name(pid):
+    """Resolve PID -> executable name via tasklist ("" if gone)."""
+    out = subprocess.run(
+        f'tasklist /FI "PID eq {pid}" /FO CSV /NH',
+        shell=True, capture_output=True, text=True
+    ).stdout
+    for line in out.strip().splitlines():
+        parts = line.split('","')
+        if parts:
+            return parts[0].strip('"')
+    return ""
+
 def kill_on_port(port):
     out = subprocess.run(
         f'netstat -ano | findstr ":{port} " | findstr LISTENING',
@@ -27,6 +39,11 @@ def kill_on_port(port):
         parts = line.split()
         if len(parts) >= 6 and parts[4] == "LISTENING":
             pid = int(parts[-1])
+            # Never kill non-python processes (nginx, WSL llama-server ...)
+            name = proc_name(pid)
+            if name.lower() not in ("python.exe", "pythonw.exe"):
+                print(f"  Skip PID {pid} ({name}) on :{port} - not python")
+                continue
             try:
                 subprocess.run(["taskkill", "/F", "/PID", str(pid)],
                                capture_output=True, shell=True)
@@ -55,8 +72,8 @@ def main():
 
     # start services
     print("\n[1] Starting services...")
-    start_service("Dashboard (80)", "-m", "uvicorn", "dashboard.app:app",
-                  "--host", "0.0.0.0", "--port", "80")
+    start_service("Dashboard (8081)", "-m", "uvicorn", "dashboard.app:app",
+                  "--host", "0.0.0.0", "--port", "8081")
     start_service("Hub HTTP+Heartbeat (8080/5000)", "app.py")
 
     # wait and check
@@ -72,7 +89,7 @@ def main():
     print("\n=== Result ===")
     if all_ok:
         print("All services started successfully!")
-        print("  Dashboard : http://AKOagent  (http://127.0.0.1)")
+        print("  Dashboard : http://127.0.0.1:8081")
         print("  Hub HTTP  : http://localhost:8080")
         print("  Hub Beat  : http://localhost:5000")
     else:
