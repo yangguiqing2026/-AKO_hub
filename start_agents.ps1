@@ -17,7 +17,9 @@ try {
         Write-Host "[start_agents] supervisor already running (PID $($existing.ProcessId -join ',')) - skip"
         exit 0
     }
-    Start-Process -FilePath $py -ArgumentList "scripts/agent_supervisor.py" -WorkingDirectory $hub -RedirectStandardOutput "$hub\logs\supervisor_out.log" -RedirectStandardError "$hub\logs\supervisor_err.log" -NoNewWindow
+    # 2026-10-06（WO-HAI-20261006-009 铁律3）：-u 保证 supervisor 自身 stdout 无缓冲，
+    # supervisor_out.log 存活期实时有字（等效 PYTHONUNBUFFERED；代码侧另有 main() 行缓冲兜底）
+    Start-Process -FilePath $py -ArgumentList "-u","scripts/agent_supervisor.py" -WorkingDirectory $hub -RedirectStandardOutput "$hub\logs\supervisor_out.log" -RedirectStandardError "$hub\logs\supervisor_err.log" -NoNewWindow
     Write-Host "[start_agents] supervisor launched"
 } finally {
     $fs.Close()
