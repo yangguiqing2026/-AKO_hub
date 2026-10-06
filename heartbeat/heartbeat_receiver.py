@@ -166,6 +166,125 @@ def receive_heartbeat_data(data: Dict[str, Any], db_path: str = "ako_hub.db") ->
         return {"status": "error", "message": f"{type(e).__name__}: {e}"}
 
 
+def _insert_llm_call(conn: sqlite3.Connection, data: Dict[str, Any]) -> None:
+    """写入一条 LLM 调用记录。
+
+    token 缺失时保持 NULL 并把 tokens_missing 置 1——不得填 0 伪装成"零消耗"。
+    """
+    prompt_tokens = data.get("prompt_tokens")
+    completion_tokens = data.get("completion_tokens")
+    total_tokens = data.get("total_tokens")
+    tokens_missing = 1 if None in (prompt_tokens, completion_tokens, total_tokens) else 0
+
+    conn.execute(
+        """
+        INSERT INTO llm_calls
+            (agent_id, entry_point, provider, model,
+             prompt_tokens, completion_tokens, total_tokens, tokens_missing,
+             duration_ms, success, error_type, error_msg, recorded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            data.get("agent_id"),
+            data.get("entry_point"),
+            data.get("provider"),
+            data.get("model"),
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            tokens_missing,
+            data.get("duration_ms"),
+            1 if data.get("success") else 0,
+            data.get("error_type"),
+            data.get("error_msg"),
+            data.get("recorded_at", datetime.now(timezone.utc).isoformat()),
+        ),
+    )
+
+
+def _bump_ingest_stats(
+    conn: sqlite3.Connection,
+    agent_id: str,
+    received: int = 0,
+    rejected: int = 0,
+    error: Optional[str] = None,
+) -> None:
+    """按 (agent_id, 小时) 累加采集计数。
+
+    P0：观测层自身的失败必须可见——否则会出现"数据空洞而无人知晓"。
+    """
+    hour = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00")
+    conn.execute(
+        """
+        INSERT INTO llm_ingest_stats (agent_id, hour, received_count, rejected_count, last_error)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(agent_id, hour) DO UPDATE SET
+            received_count = received_count + excluded.received_count,
+            rejected_count = rejected_count + excluded.rejected_count,
+            last_error = COALESCE(excluded.last_error, llm_ingest_stats.last_error)
+        """,
+        (agent_id, hour, received, rejected, error),
+    )
+
+
+def receive_llm_call_data(data: Dict[str, Any], db_path: str = "ako_hub.db") -> Dict[str, Any]:
+    """
+    接收并处理 LLM 调用记录（纯函数，无 Web 依赖）。
+
+    Args:
+        data: { agent_id, entry_point, provider, model, prompt_tokens, ... }
+        db_path: SQLite 数据库路径
+
+    Returns:
+        {"status": "ok"} 或 {"status": "error", "message": str}
+    """
+    agent_id = data.get("agent_id") or "(unknown)"
+    missing = [f for f in ("agent_id", "entry_point") if not data.get(f)]
+
+    try:
+        conn = _get_db(db_path)
+        try:
+            if missing:
+                msg = "缺少必需字段: " + ", ".join(missing)
+                _bump_ingest_stats(conn, agent_id, rejected=1, error=msg)
+                conn.commit()
+                return {"status": "error", "message": msg}
+
+            _insert_llm_call(conn, data)
+            _bump_ingest_stats(conn, agent_id, received=1)
+            conn.commit()
+        finally:
+            conn.close()
+
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": f"{type(e).__name__}: {e}"}
+
+
+def get_llm_ingest_stats(db_path: str = "ako_hub.db") -> list[Dict[str, Any]]:
+    """查询采集统计（按 agent + 小时聚合）。"""
+    conn = _get_db(db_path)
+    try:
+        cur = conn.execute(
+            "SELECT * FROM llm_ingest_stats ORDER BY agent_id, hour"
+        )
+        return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_llm_calls(db_path: str = "ako_hub.db", limit: int = 100) -> list[Dict[str, Any]]:
+    """查询 LLM 调用记录（按写入倒序）。"""
+    conn = _get_db(db_path)
+    try:
+        cur = conn.execute(
+            "SELECT * FROM llm_calls ORDER BY id DESC LIMIT ?", (limit,)
+        )
+        return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
 def _spoke_registry_agents() -> list[tuple[str, str, str]]:
     """本地 spoke 注册表（registry/workflows.py）agent 型实体清单。
 

@@ -22,7 +22,11 @@ _HUB_ROOT = Path(__file__).resolve().parent.parent
 if str(_HUB_ROOT) not in sys.path:
     sys.path.insert(0, str(_HUB_ROOT))
 
-from heartbeat.heartbeat_receiver import get_agents_status, receive_heartbeat_data
+from heartbeat.heartbeat_receiver import (
+    get_agents_status,
+    receive_heartbeat_data,
+    receive_llm_call_data,
+)
 
 PORT = 5000
 
@@ -62,6 +66,30 @@ def _ensure_schema(db_path: str) -> None:
         context TEXT,
         timestamp TEXT
     );
+    CREATE TABLE IF NOT EXISTS llm_ingest_stats (
+        agent_id TEXT,
+        hour TEXT,
+        received_count INTEGER DEFAULT 0,
+        rejected_count INTEGER DEFAULT 0,
+        last_error TEXT,
+        PRIMARY KEY (agent_id, hour)
+    );
+    CREATE TABLE IF NOT EXISTS llm_calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT,
+        entry_point TEXT,
+        provider TEXT,
+        model TEXT,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        total_tokens INTEGER,
+        tokens_missing INTEGER DEFAULT 0,
+        duration_ms REAL,
+        success INTEGER DEFAULT 0,
+        error_type TEXT,
+        error_msg TEXT,
+        recorded_at TEXT
+    );
     """
     conn = sqlite3.connect(db_path)
     try:
@@ -91,7 +119,16 @@ class HeartbeatHandler(BaseHTTPRequestHandler):
             return {}
 
     def do_POST(self):
-        if self.path.split("?")[0] != "/heartbeat":
+        path = self.path.split("?")[0]
+
+        if path == "/llm_call":
+            data = self._read_json_body()
+            result = receive_llm_call_data(data, db_path=_DEFAULT_DB)
+            code = 200 if result.get("status") == "ok" else 400
+            self._send_json(code, result)
+            return
+
+        if path != "/heartbeat":
             self._send_json(404, {"error": "not found"})
             return
         data = self._read_json_body()
