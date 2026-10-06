@@ -193,9 +193,12 @@ class TestAlertSendLog(unittest.TestCase):
         self._tmp.cleanup()
 
     def _call(self, **kw):
-        sup._notify_guardian_functional_down(
-            "probe fail x3", ledger=self.ledger, dispatcher_factory=lambda: self.fake,
-            alert_log=self.log, **kw)
+        args = dict(ledger=self.ledger, dispatcher_factory=lambda: self.fake, alert_log=self.log)
+        args.update(kw)  # 允许单测覆盖（如落盘失败用例换不可写路径）
+        # 构建器替换为 AssertionError：实现若绕过注入即测试爆响，绝不触真通道
+        with mock.patch.object(sup, "_build_functional_down_dispatcher",
+                               side_effect=AssertionError("测试中禁止构建真实派发器")):
+            sup._notify_guardian_functional_down("probe fail x3", **args)
 
     def _lines(self):
         return [json.loads(x) for x in self.log.read_text(encoding="utf-8").splitlines() if x.strip()]

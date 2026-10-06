@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
+import json
 import os
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Callable
 import psutil
 import requests
 
@@ -38,6 +40,15 @@ MAX_RESTARTS_PER_HOUR = 3
 GUARDIAN_FRESHNESS_HOURS = 26
 # 冷启动宽限：进程新起 ≤120 分钟且无任何产出时视为"未就绪"（放行，不判死）
 GUARDIAN_COLD_START_MINUTES = 120
+
+# 2026-10-06（WO-HAI-20261006-009）：supervisor 告警卫生三件套
+# 铁律1：静音与 guardian 巡检告警同口径——同 Agent+同异常类型，静默 180 分钟，期满重报
+ALERT_SILENCE_MINUTES = 180
+# 铁律2：告警判定/发送结果 append-only 落盘
+SUPERVISOR_ALERT_LOG = Path(__file__).resolve().parent.parent / "logs" / "supervisor_alerts.jsonl"
+# 铁律1 配套：静音状态持久化（跨 supervisor 重启持续生效）
+SUPERVISOR_ALERT_SILENCE_FILE = (
+    Path(__file__).resolve().parent.parent / "logs" / "supervisor_alert_silence.json")
 
 # registry agent uses its own venv python
 REGISTRY_PY = REGISTRY_DIR / ".venv" / "Scripts" / "python.exe"
@@ -290,29 +301,169 @@ def _format_alert_result(result: dict) -> str:
             f"err={result.get('error', '')}")
 
 
-def _notify_guardian_functional_down(evidence: str) -> None:
+class AlertSilenceLedger:
+    """告警静音账本（WO-009 铁律1）：同 Agent+同异常类型，静默 180 分钟，期满重报。
+
+    与 guardian 巡检告警同口径（netwatch AlertState.should_send 语义：放行即记时，
+    尝试即算，失败不风暴重试）；状态落盘 JSON，跨实例/supervisor 重启持续生效。
+    """
+
+    def __init__(self, path: Path | None = None, window_minutes: int | None = None,
+                 clock: Callable[[], float] | None = None) -> None:
+        self.path = Path(path) if path is not None else SUPERVISOR_ALERT_SILENCE_FILE
+        self.window_seconds = float((window_minutes if window_minutes is not None
+                                     else ALERT_SILENCE_MINUTES) * 60)
+        self.clock = clock or time.time
+        self._entries: dict[str, dict] = {}
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            if self.path.exists():
+                data = json.loads(self.path.read_text(encoding="utf-8"))
+                entries = data.get("entries") if isinstance(data, dict) else None
+                if isinstance(entries, dict):
+                    self._entries = entries
+        except Exception as e:  # 状态损坏不得阻断告警（降级为空账本）
+            print(f"[supervisor] 静音状态读取失败（降级为空账本）: {e}")
+            self._entries = {}
+
+    def _save(self) -> None:
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+            tmp.write_text(json.dumps({"version": 1, "entries": self._entries},
+                                      ensure_ascii=False, indent=1), encoding="utf-8")
+            os.replace(tmp, self.path)
+        except Exception as e:  # 落盘失败仅降级为内存生效，不阻断监督
+            print(f"[supervisor] 静音状态落盘失败（仅内存生效）: {e}")
+
+    def allow(self, event_key: str) -> tuple[bool, float]:
+        """判定并记账：返回 (是否放行, 被静默时剩余秒数)。放行即持久化记时。"""
+        now = self.clock()
+        state = self._entries.get(event_key)
+        if state is not None:
+            elapsed = now - float(state.get("last_sent", 0.0))
+            if elapsed < self.window_seconds:
+                return False, self.window_seconds - elapsed
+            state["last_sent"] = now
+            state["count"] = int(state.get("count", 0)) + 1
+        else:
+            self._entries[event_key] = {"first_alert": now, "last_sent": now, "count": 1}
+        self._save()
+        return True, 0.0
+
+
+_ALERT_LEDGER: AlertSilenceLedger | None = None
+
+
+def _get_alert_ledger() -> AlertSilenceLedger:
+    """生产用静音账本单例（测试经参数注入替身，不触本函数）。"""
+    global _ALERT_LEDGER
+    if _ALERT_LEDGER is None:
+        _ALERT_LEDGER = AlertSilenceLedger()
+    return _ALERT_LEDGER
+
+
+def _append_supervisor_alert_log(record: dict, path: Path | None = None) -> bool:
+    """告警判定/发送结果 append-only 落盘（WO-009 铁律2）。失败仅告警不阻断。"""
+    target = Path(path) if path is not None else SUPERVISOR_ALERT_LOG
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return True
+    except Exception as e:
+        print(f"[supervisor] 告警留痕写入失败（不阻断监督）: {e}")
+        return False
+
+
+def _alert_recipient(dispatcher: Any) -> str:
+    """从派发器提取收件人（不可得时返回空串，仅影响留痕字段）。"""
+    try:
+        return str(getattr(getattr(dispatcher, "notifier", None), "email", "") or "")
+    except Exception:
+        return ""
+
+
+def _ensure_guardian_import_path() -> None:
+    """将 cluster_guardian 目录加入 sys.path（guardian 模块为只读依赖，不改动）。"""
+    gdir = str(CLUSTER_GUARDIAN_DIR)
+    if gdir not in sys.path:
+        sys.path.insert(0, gdir)
+
+
+def _build_functional_down_dispatcher() -> Any:
+    """构建真实告警派发器（唯一真实通道出口；凭据经 netwatch secrets.env 同源注入）。
+
+    WO-009：mock 实测经 dispatcher_factory 注入替身，绝不调用本函数（零真实外发）。
+    """
+    secrets_path = AKO_ROOT / "AKO_netwatch_agent" / "secrets.env"
+    if secrets_path.exists():
+        for line in secrets_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+    _ensure_guardian_import_path()
+    from src.core.patrol import load_active_duty_config  # type: ignore
+    from src.core.alert_dispatcher import AlertDispatcher  # type: ignore
+
+    return AlertDispatcher(load_active_duty_config())
+
+
+def _force_line_buffered_stdout(stream: object | None = None) -> bool:
+    """自身 stdout 行缓冲（WO-009 铁律3，等效 PYTHONUNBUFFERED；对任意启动路径兜底）。"""
+    target = stream if stream is not None else sys.stdout
+    try:
+        reconfigure = getattr(target, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(line_buffering=True)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _notify_guardian_functional_down(evidence: str, *, ledger: AlertSilenceLedger | None = None,
+                                     dispatcher_factory: Callable[[], Any] | None = None,
+                                     alert_log: Path | None = None) -> None:
     """探针判死后告警出口（铁律5）：经 guardian 告警派发器（netwatch 通道）。
 
-    禁止新建 SMTP 通道（本函数不引入任何 SMTP 配置；凭据经 netwatch
-    secrets.env 同源注入进程环境，不入库、不硬编码）。
+    2026-10-06（WO-009）：
+    - 静音（铁律1）：同 Agent+同异常类型（本路径固定 AKO_cluster_guardian_agent:DOWN），
+      180 分钟内仅首报外发、期满重报，状态跨重启持久化——风暴不再依赖根因消失；
+    - 留痕（铁律2）：每次判定（实发/静默/失败）append 一条 JSONL；
+    - 禁止新建 SMTP 通道：仍复用既有派发链（本函数不引入任何 SMTP 配置）。
+    测试注入 ledger/dispatcher_factory/alert_log 时为全程 mock，零真实外发。
     """
+    led = ledger if ledger is not None else _get_alert_ledger()
+    event_key = "AKO_cluster_guardian_agent:DOWN"
+    allowed, remaining = led.allow(event_key)
+    base = {
+        "ts": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "caller": "supervisor_watchdog",
+        "agent_id": "AKO_cluster_guardian_agent",
+        "verdict": "DOWN",
+        "event_key": event_key,
+        "evidence": evidence,
+    }
+    if not allowed:
+        _append_supervisor_alert_log(
+            {**base, "mode": "suppressed_local", "sent": False, "recipient": "", "subject": "",
+             "error": f"静默窗口内（{ALERT_SILENCE_MINUTES} 分钟），剩余 {remaining:.0f}s"},
+            alert_log)
+        print(f"[supervisor] 功能死告警静默：{event_key} 近 {ALERT_SILENCE_MINUTES} 分钟内已报警"
+              f"（剩余 {remaining:.0f}s），本次不外发")
+        return
+    dispatcher = None
+    result: dict = {}
     try:
-        secrets_path = AKO_ROOT / "AKO_netwatch_agent" / "secrets.env"
-        if secrets_path.exists():
-            for line in secrets_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip())
-        gdir = str(CLUSTER_GUARDIAN_DIR)
-        if gdir not in sys.path:
-            sys.path.insert(0, gdir)
-        from src.core.patrol import load_active_duty_config  # type: ignore
+        _ensure_guardian_import_path()
+        build = dispatcher_factory or _build_functional_down_dispatcher
+        dispatcher = build()
         from src.core.health_probe import AgentHealth, CheckOutcome, now_beijing  # type: ignore
-        from src.core.alert_dispatcher import AlertDispatcher  # type: ignore
 
-        cfg = load_active_duty_config()
-        dispatcher = AlertDispatcher(cfg)
         health = AgentHealth(
             agent_id="AKO_cluster_guardian_agent",
             verdict="DOWN",
@@ -325,10 +476,17 @@ def _notify_guardian_functional_down(evidence: str) -> None:
             "action": "alert_only",
             "reason": "supervisor 功能级探针判死（心跳+产出双证据），进入受限重启机制",
         }
-        r = dispatcher.dispatch(health, decision, "supervisor_watchdog", dry_run=False)
-        print(_format_alert_result(r))
+        result = dispatcher.dispatch(health, decision, "supervisor_watchdog", dry_run=False)
     except Exception as e:
+        result = {"sent": False, "mode": "error", "subject": "", "error": f"{type(e).__name__}: {e}"}
         print(f"[supervisor] guardian 功能死告警发送失败（仅记录，不阻断监督）: {e}")
+    _append_supervisor_alert_log(
+        {**base, "mode": result.get("mode", ""), "sent": bool(result.get("sent")),
+         "recipient": _alert_recipient(dispatcher), "subject": result.get("subject", ""),
+         "error": result.get("error", "")},
+        alert_log)
+    if result.get("mode") != "error":
+        print(_format_alert_result(result))
 
 
 def probe_quote(ap: AgentProc) -> bool:
@@ -498,6 +656,7 @@ def _agent_already_running(ap: AgentProc) -> bool:
 
 
 def main() -> None:
+    _force_line_buffered_stdout()  # WO-009 铁律3：自身日志存活期实时有字（等效 -u）
     if not _acquire_singleton():
         print("[supervisor] 另一 supervisor 实例已在运行（pid 锁） - 退出（防双实例）")
         return
