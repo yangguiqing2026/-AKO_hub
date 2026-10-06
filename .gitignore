@@ -22,3 +22,9 @@ geo_output/
 backups/
 *.bak*
 outputs/
+
+# WO-010 运行态产物出库（2026-10-06 授权）
+chroma_db/chroma.sqlite3
+registry/http_registered_agents.json
+system/
+成果文件/
