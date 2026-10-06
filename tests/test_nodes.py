@@ -21,15 +21,19 @@ from core.file_bus import FileBus
 from registry import workflows as reg
 
 
-def _mock_paths(root: Path):
-    """覆盖 nodes.py 的路径解析。"""
+def _mock_paths(monkeypatch, root: Path):
+    """覆盖 nodes.py 的路径解析（monkeypatch 自动还原，避免跨测试污染）。"""
     import master.nodes as nodes
-    nodes._resolve_hub_paths = lambda: {
-        "sync_root": str(root),
-        "db_path": str(root / "age_hub.db"),
-        "chroma_root": str(root / "chroma_db"),
-        "file_root": str(root / "files"),
-    }
+    monkeypatch.setattr(
+        nodes,
+        "_resolve_hub_paths",
+        lambda: {
+            "sync_root": str(root),
+            "db_path": str(root / "age_hub.db"),
+            "chroma_root": str(root / "chroma_db"),
+            "file_root": str(root / "files"),
+        },
+    )
 
 
 def test_task_router():
@@ -73,11 +77,11 @@ def test_task_router():
     print(f"  [PASS] 无效意图: {result['status']}")
 
 
-def test_kb_allocator():
+def test_kb_allocator(monkeypatch):
     print("\n[TEST] kb_allocator")
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
-        _mock_paths(root)
+        _mock_paths(monkeypatch, root)
         db_path = root / "age_hub.db"
         chroma_root = root / "chroma"
 
@@ -107,11 +111,11 @@ def test_kb_allocator():
         print(f"  [PASS] 知识库缺失: {result['kb_status']}")
 
 
-def test_workflow_caller_and_file_collector():
+def test_workflow_caller_and_file_collector(monkeypatch):
     print("\n[TEST] workflow_caller + file_collector")
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
-        _mock_paths(root)
+        _mock_paths(monkeypatch, root)
         file_root = root / "files"
         file_root.mkdir()
 
@@ -168,11 +172,11 @@ def test_workflow_caller_and_file_collector():
             sys.path.remove(str(root))
 
 
-def test_error_and_aggregator():
+def test_error_and_aggregator(monkeypatch):
     print("\n[TEST] error_handler + state_aggregator")
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
-        _mock_paths(root)
+        _mock_paths(monkeypatch, root)
         db = HubDB(root / "age_hub.db")
         db.connect()
         db.init_schema()
