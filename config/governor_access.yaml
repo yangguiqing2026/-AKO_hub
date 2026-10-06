@@ -6,3 +6,7 @@ governors:
 - human_id: HUM-YANGGUIQING-001
   name: 杨贵清
   role: 安全官_L3
+- human_id: HUM-ZHOUMINGJING-001
+  name: 周明静
+  role: 员工_L1
+  note: 法定代表人 · 治理指挥室入口 2026-09-03

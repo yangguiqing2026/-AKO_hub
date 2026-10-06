@@ -137,6 +137,33 @@ keyword_routes:
 - keyword: 法务
   agent_id: AKO_law_agent
   confidence: 0.85
+# 立法类关键词（2026-09-10 补）。原表仅有「法律/合规/合同/法务」，均为**咨询类**语义；
+# 立法起草（《AKO立法程序法》§3.1 由 Law Agent 执行）无对应路由，工单到不了 law_agent。
+# 置信度取 0.95 以确保优先于「规范→AKO_drawing_inspector(0.8)」等相邻规则。
+- keyword: 立法
+  agent_id: AKO_law_agent
+  confidence: 0.95
+- keyword: 立法需求
+  agent_id: AKO_law_agent
+  confidence: 0.95
+- keyword: 立法提案
+  agent_id: AKO_law_agent
+  confidence: 0.95
+- keyword: 制定规范
+  agent_id: AKO_law_agent
+  confidence: 0.95
+- keyword: 起草规范
+  agent_id: AKO_law_agent
+  confidence: 0.95
+- keyword: 合规审查
+  agent_id: AKO_law_agent
+  confidence: 0.95
+- keyword: 审签
+  agent_id: AKO_law_agent
+  confidence: 0.9
+- keyword: 罚则
+  agent_id: AKO_law_agent
+  confidence: 0.9
 - keyword: 帮我
   agent_id: AKO_hub_intake_agent
   confidence: 0.95
