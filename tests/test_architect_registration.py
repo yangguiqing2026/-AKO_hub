@@ -70,3 +70,18 @@ def test_adapter_empty_intent_error():
         assert result["error"], "空 intent 应返回 error"
     finally:
         os.environ.pop("AKO_HUB_SPOKE_DRYRUN", None)
+
+
+def test_adapter_synthesizes_intent_from_wo_fields():
+    """intake 老载荷无 intent（只有 action/scope）时由 WO 字段合成，dry-run 可过。"""
+    mod = importlib.import_module("agents.ako_architect_adapter")
+    os.environ["AKO_HUB_SPOKE_DRYRUN"] = "1"
+    try:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            result = mod.run(intent="", action="方案设计", scope="陶粒墙板厂房", _hub_output_dir=td)
+            assert result["error"] is None, result["error"]
+            assert result["summary"].startswith("architect dry-run OK")
+    finally:
+        os.environ.pop("AKO_HUB_SPOKE_DRYRUN", None)

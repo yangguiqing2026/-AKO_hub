@@ -9,6 +9,8 @@ AKO Hub — AKO_architect_agent 适配器
 2. 延迟导入 agent 侧 spoke（agent 依赖重，导入失败不拖慢 hub 启动，错误透传三字段）。
 3. 人工在环约定：architect 真实执行推进至"构思确认待命点"
    （human_approval_status=pending），不无人化跑文生图链。
+4. 例外（2026-09-09 AKO_studio 拍板）：效果图/渲染类工单（action/scope/intent 命中
+   效果图|渲染）由 spoke 自动渲染 4 视角出图（wanx 优先、SD 兜底），不经构思确认。
 
 调用链：
     task_executor → agents.ako_architect_adapter.run(**payload)
@@ -22,6 +24,20 @@ from typing import Any, Dict
 
 AGENT_DIR = Path(r"D:\AKO\AKO_architect_agent")
 SHARED_DIR = Path(r"D:\AKO\AKO_shared")
+
+
+def _synthesize_intent(intent: str, kwargs: Dict[str, Any]) -> str:
+    """intent 为空时从 WO 透传字段（action/scope）合成设计需求。
+
+    兜底：intake 老版本载荷只带 module/action/scope（无 intent），
+    若不合成，architect spoke 按契约拒收空 intent，工单必然失败。
+    """
+    intent = str(intent or "").strip()
+    if intent:
+        return intent
+    action = str(kwargs.get("action") or "").strip()
+    scope = str(kwargs.get("scope") or "").strip()
+    return " ".join(filter(None, [action, scope]))
 
 
 def run(
@@ -44,7 +60,7 @@ def run(
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module.run(
-            intent=intent,
+            intent=_synthesize_intent(intent, kwargs),
             project_tag=project_tag,
             _hub_output_dir=_hub_output_dir,
             _hub_db_path=_hub_db_path,
